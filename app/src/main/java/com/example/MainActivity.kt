@@ -1,6 +1,7 @@
 package com.example
 
 import android.Manifest
+import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -22,7 +23,6 @@ import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,32 +36,54 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ai.AnalysisException
+import com.example.ai.CefrLevel
+import com.example.ai.CefrMapper
 import com.example.ai.GeminiPronunciationService
 import com.example.ai.PhoneticTip
+import com.example.ai.PracticePrompt
+import com.example.ai.PromptLibrary
 import com.example.audio.AudioRecorderManager
+import com.example.data.FluencyDatabase
+import com.example.data.SessionEntity
+import com.example.data.StreakCalculator
+import com.example.data.UserPrefs
 import com.example.ui.components.*
 import com.example.ui.effects.SimpleAudioVisualizer
 import com.example.ui.effects.subtleClick
 import com.example.ui.theme.*
 import com.example.util.rememberHapticHelper
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.ArrayDeque
 
 enum class AppState {
     Dashboard, Recording, Analyzing, Result
 }
 
+/** Analysis status for the Analyzing screen and error/retry UX (F8). */
+sealed interface AnalysisUiState {
+    data object Idle : AnalysisUiState
+    data class Loading(val step: String) : AnalysisUiState
+    data class Error(val message: String) : AnalysisUiState
+}
+
 data class FluencyMetrics(
     val score: Int = 86,
     val cefr: String = "B2 Upper Intermediate",
+    val cefrJustification: String = "",
     val wpm: Int = 132,
     val pauses: Int = 2,
     val fillers: Int = 1,
@@ -74,7 +96,6 @@ data class FluencyMetrics(
         "Smooth transition using 'consequently' to connect cause and effect.",
         "Consider using 'under tight deadlines' instead of 'in a tight deadline' for idiomatic precision."
     ),
-    val searchGroundingSummary: String = "Verified with Google Search (gemini-3.5-flash): Software engineering industry benchmarks confirm standard mobile crash-free target thresholds are typically 99.5%–99.9%.",
     val pronunciationScore: Int = 88,
     val accentClarityScore: Int = 84,
     val detectedAccentProfile: String = "General American cadence with clear consonant articulation",
@@ -103,7 +124,10 @@ data class FluencyMetrics(
     val isRealAiGenerated: Boolean = true
 )
 
-class FluencyViewModel : ViewModel() {
+class FluencyViewModel(application: Application) : AndroidViewModel(application) {
+    private val prefs = UserPrefs(application.applicationContext)
+    private val sessionDao = FluencyDatabase.get(application.applicationContext).sessionDao()
+
     private val _appState = MutableStateFlow(AppState.Dashboard)
     val appState: StateFlow<AppState> = _appState.asStateFlow()
 
@@ -123,8 +147,8 @@ class FluencyViewModel : ViewModel() {
     private val _metrics = MutableStateFlow(FluencyMetrics())
     val metrics: StateFlow<FluencyMetrics> = _metrics.asStateFlow()
 
-    // Daily Goal State & Progress
-    private val _dailyGoalMinutes = MutableStateFlow(15) // default 15 mins daily goal
+    // Daily Goal State & Progress (F2: loaded from DataStore + Room, never hardcoded)
+    private val _dailyGoalMinutes = MutableStateFlow(15) // default until DataStore loads
     val dailyGoalMinutes: StateFlow<Int> = _dailyGoalMinutes.asStateFlow()
 
     // Audio & Gemini AI state
@@ -134,23 +158,31 @@ class FluencyViewModel : ViewModel() {
     private val _audioAmplitude = MutableStateFlow(0f)
     val audioAmplitude: StateFlow<Float> = _audioAmplitude.asStateFlow()
 
-    private val _analysisStepMessage = MutableStateFlow("Sending microphone recording to Gemini AI...")
-    val analysisStepMessage: StateFlow<String> = _analysisStepMessage.asStateFlow()
+    // F8: single source of truth for analysis status (replaces the fixed-delay callback).
+    private val _analysisUiState = MutableStateFlow<AnalysisUiState>(AnalysisUiState.Idle)
+    val analysisUiState: StateFlow<AnalysisUiState> = _analysisUiState.asStateFlow()
+
+    // F1: single in-flight analysis job; F6: single amplitude collector.
+    private var analysisJob: Job? = null
+    private var amplitudeCollectJob: Job? = null
 
     private var recordedAudioFile: File? = null
 
-    private val _todayPracticedMinutes = MutableStateFlow(6) // 6 mins practiced today
+    private val _todayPracticedMinutes = MutableStateFlow(0)
     val todayPracticedMinutes: StateFlow<Int> = _todayPracticedMinutes.asStateFlow()
 
     private val _showGoalDialog = MutableStateFlow(false)
     val showGoalDialog: StateFlow<Boolean> = _showGoalDialog.asStateFlow()
 
-    // Milestone Badges & Rewards
-    private val _totalPracticeMinutes = MutableStateFlow(60) // 60 mins practiced
+    // Milestone Badges & Rewards (F2: computed from the Room session log)
+    private val _totalPracticeMinutes = MutableStateFlow(0)
     val totalPracticeMinutes: StateFlow<Int> = _totalPracticeMinutes.asStateFlow()
 
-    private val _streakDays = MutableStateFlow(7) // 7-day streak
+    private val _streakDays = MutableStateFlow(0)
     val streakDays: StateFlow<Int> = _streakDays.asStateFlow()
+
+    private val _avgWpm = MutableStateFlow(0)
+    val avgWpm: StateFlow<Int> = _avgWpm.asStateFlow()
 
     private val _selectedBadge = MutableStateFlow<MilestoneBadge?>(null)
     val selectedBadge: StateFlow<MilestoneBadge?> = _selectedBadge.asStateFlow()
@@ -158,96 +190,81 @@ class FluencyViewModel : ViewModel() {
     private val _recentUnlockedBadge = MutableStateFlow<MilestoneBadge?>(null)
     val recentUnlockedBadge: StateFlow<MilestoneBadge?> = _recentUnlockedBadge.asStateFlow()
 
-    private val _badges = MutableStateFlow(
-        listOf(
-            MilestoneBadge(
-                id = "streak_7",
-                title = "7-Day Streak",
-                description = "Practiced speaking consistently for 7 consecutive days without skipping.",
-                category = "Consistency",
-                current = 7,
-                target = 7,
-                unit = "days",
-                icon = Icons.Default.Whatshot,
-                accentColor = Color(0xFFEA580C),
-                isUnlocked = true,
-                unlockedDate = "Yesterday"
-            ),
-            MilestoneBadge(
-                id = "practice_1hr",
-                title = "1 Hour Practiced",
-                description = "Reached 60 minutes of cumulative active speaking practice time.",
-                category = "Endurance",
-                current = 60,
-                target = 60,
-                unit = "min",
-                icon = Icons.Default.HourglassBottom,
-                accentColor = BluePrimary,
-                isUnlocked = true,
-                unlockedDate = "Today"
-            ),
-            MilestoneBadge(
-                id = "first_drill",
-                title = "First Drill",
-                description = "Completed your initial timed fluency practice drill.",
-                category = "Foundation",
-                current = 1,
-                target = 1,
-                unit = "drill",
-                icon = Icons.Default.WorkspacePremium,
-                accentColor = SuccessGreen,
-                isUnlocked = true,
-                unlockedDate = "3 days ago"
-            ),
-            MilestoneBadge(
-                id = "pacing_master",
-                title = "Pacing Master",
-                description = "Maintain speech rate within target 120–150 WPM for 3 sessions.",
-                category = "Fluency",
-                current = 3,
-                target = 3,
-                unit = "sessions",
-                icon = Icons.Default.Speed,
-                accentColor = Color(0xFF7C3AED),
-                isUnlocked = true,
-                unlockedDate = "Just now"
-            ),
-            MilestoneBadge(
-                id = "fluency_ace",
-                title = "Fluency Ace",
-                description = "Score 90+ overall fluency rating with high grammar accuracy.",
-                category = "Excellence",
-                current = 86,
-                target = 90,
-                unit = "score",
-                icon = Icons.Default.EmojiEvents,
-                accentColor = WarningAmber,
-                isUnlocked = false
-            ),
-            MilestoneBadge(
-                id = "long_turn_pro",
-                title = "Long-Turn Pro",
-                description = "Complete a demanding 2-minute IELTS long-turn speaking drill.",
-                category = "Challenge",
-                current = 60,
-                target = 120,
-                unit = "sec",
-                icon = Icons.Default.Mic,
-                accentColor = Color(0xFF4F46E5),
-                isUnlocked = false
-            )
-        )
-    )
+    private val _badges = MutableStateFlow(baseBadges())
     val badges: StateFlow<List<MilestoneBadge>> = _badges.asStateFlow()
 
-    val currentPrompt = "Describe a challenging situation you overcame at work or school, and what you learned from it."
+    // F9: prompt library + rotation; F10: user level + onboarding.
+    private val _userLevel = MutableStateFlow(CefrLevel.B1)
+    val userLevel: StateFlow<CefrLevel> = _userLevel.asStateFlow()
+
+    private val _currentPrompt = MutableStateFlow(
+        PromptLibrary.prompts.first { it.id == "work_b1_1" }
+    )
+    val currentPrompt: StateFlow<PracticePrompt> = _currentPrompt.asStateFlow()
+    private val recentPromptIds = ArrayDeque<String>(6)
+
+    private val _showOnboarding = MutableStateFlow(false)
+    val showOnboarding: StateFlow<Boolean> = _showOnboarding.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _dailyGoalMinutes.value = prefs.dailyGoalMinutes.first()
+            _userLevel.value = prefs.userLevel.first()
+            _showOnboarding.value = !prefs.onboardingDone.first()
+            // Start follow-up collectors so later changes (e.g. goal edits) stick.
+            launch { prefs.dailyGoalMinutes.collect { _dailyGoalMinutes.value = it } }
+            launch { prefs.userLevel.collect { _userLevel.value = it } }
+            refreshProgress()
+        }
+    }
+
+    /** Recomputes all progress numbers from the Room session log (F2). */
+    private suspend fun refreshProgress() {
+        val today = currentEpochDay()
+        _totalPracticeMinutes.value = (sessionDao.totalDurationSec() / 60).toInt()
+        _todayPracticedMinutes.value = (sessionDao.durationSecOn(today) / 60).toInt()
+        _streakDays.value = StreakCalculator.computeStreak(sessionDao.activeEpochDays(), today)
+        _avgWpm.value = sessionDao.avgWpmReal().toInt()
+
+        val sessionCount = sessionDao.count()
+        val totalMinutes = _totalPracticeMinutes.value
+        val bestScore = sessionDao.bestScoreReal()
+        val pacingSessions = sessionDao.pacingSessionCount()
+        val longestSec = sessionDao.longestSessionSec()
+        val streak = _streakDays.value
+
+        val previouslyUnlocked = _badges.value.filter { it.isUnlocked }.map { it.id }.toSet()
+        _badges.value = _badges.value.map { badge ->
+            when (badge.id) {
+                "streak_7" -> badge.copy(current = streak, isUnlocked = streak >= 7)
+                "practice_1hr" -> badge.copy(current = totalMinutes, isUnlocked = totalMinutes >= 60)
+                "first_drill" -> badge.copy(current = minOf(sessionCount, 1), isUnlocked = sessionCount >= 1)
+                "pacing_master" -> badge.copy(current = minOf(pacingSessions, 3), isUnlocked = pacingSessions >= 3)
+                "fluency_ace" -> badge.copy(current = bestScore, isUnlocked = bestScore >= 90)
+                "long_turn_pro" -> badge.copy(current = minOf(longestSec, 120), isUnlocked = longestSec >= 120)
+                else -> badge
+            }
+        }
+        // Celebration banner only for badges unlocked by the latest session (F2).
+        _recentUnlockedBadge.value =
+            _badges.value.firstOrNull { it.isUnlocked && it.id !in previouslyUnlocked }
+    }
+
+    private fun currentEpochDay(): Long = System.currentTimeMillis() / 86_400_000L
 
     fun selectBadge(badge: MilestoneBadge?) {
         _selectedBadge.value = badge
     }
 
     fun setDailyGoalMinutes(minutes: Int) {
-        _dailyGoalMinutes.value = minutes.coerceIn(1, 120)
+        val coerced = minutes.coerceIn(1, 120)
+        _dailyGoalMinutes.value = coerced
+        viewModelScope.launch { prefs.setDailyGoalMinutes(coerced) }
+    }
+
+    fun completeOnboarding() {
+        _showOnboarding.value = false
+        viewModelScope.launch { prefs.setOnboardingDone() }
     }
 
     fun openGoalDialog() {
@@ -263,7 +280,18 @@ class FluencyViewModel : ViewModel() {
         _totalTargetSeconds.value = preset.durationSeconds
     }
 
-    fun startRecording(context: Context? = null, prompt: String = currentPrompt) {
+    /** F9: rotates to the next prompt for the user's level, avoiding recent repeats. */
+    fun requestNewPrompt() {
+        recentPromptIds.addLast(_currentPrompt.value.id)
+        while (recentPromptIds.size > 5) recentPromptIds.removeFirst()
+        _currentPrompt.value = PromptLibrary.next(recentPromptIds.toSet(), _userLevel.value)
+    }
+
+    fun startRecording(context: Context? = null) {
+        // F1: never start a new session while analysis is in flight.
+        if (_appState.value == AppState.Analyzing) return
+        analysisJob?.cancel()
+        _analysisUiState.value = AnalysisUiState.Idle
         _totalTargetSeconds.value = _selectedPreset.value.durationSeconds
         _elapsedSeconds.value = 0
         _isPaused.value = false
@@ -274,10 +302,14 @@ class FluencyViewModel : ViewModel() {
                 audioRecorderManager = it
             }
             if (manager.hasRecordPermission()) {
-                manager.startRecording()
-                viewModelScope.launch {
-                    manager.amplitude.collect { amp ->
-                        _audioAmplitude.value = amp
+                // F7: startRecording now fails fast when already recording.
+                if (manager.startRecording().isSuccess) {
+                    // F6: single amplitude collector — cancel the previous one first.
+                    amplitudeCollectJob?.cancel()
+                    amplitudeCollectJob = viewModelScope.launch {
+                        manager.amplitude.collect { amp ->
+                            _audioAmplitude.value = amp
+                        }
                     }
                 }
             }
@@ -293,109 +325,228 @@ class FluencyViewModel : ViewModel() {
     }
 
     fun tickTimer() {
-        if (!_isPaused.value) {
-            _elapsedSeconds.value += 1
-            // Auto stop when countdown finishes for non-freeflow preset
-            val target = _totalTargetSeconds.value
-            if (target > 0 && _elapsedSeconds.value >= target) {
-                stopRecording()
-            }
+        if (_appState.value != AppState.Recording || _isPaused.value) return
+        _elapsedSeconds.value += 1
+        // Auto stop when countdown finishes for non-freeflow preset
+        val target = _totalTargetSeconds.value
+        if (target > 0 && _elapsedSeconds.value >= target) {
+            stopRecording()
         }
     }
 
     fun stopRecording() {
+        // F1: single entry into analysis — ignore double taps / timer race.
+        if (_appState.value != AppState.Recording) return
         _appState.value = AppState.Analyzing
         recordedAudioFile = audioRecorderManager?.stopRecording()
+        amplitudeCollectJob?.cancel()
+        amplitudeCollectJob = null
         _audioAmplitude.value = 0f
-        performGeminiAnalysis()
+        launchAnalysis()
     }
 
-    fun performGeminiAnalysis() {
-        viewModelScope.launch {
-            _analysisStepMessage.value = "Sending microphone recording to Gemini AI..."
-            delay(500)
-            _analysisStepMessage.value = "Evaluating pronunciation phonemes, syllable stress & accent..."
+    /** F8: retry after an error, keeping the recorded file and timer values. */
+    fun retryAnalysis() {
+        if (_appState.value == AppState.Analyzing || recordedAudioFile == null) return
+        _appState.value = AppState.Analyzing
+        launchAnalysis()
+    }
 
-            val elapsed = _elapsedSeconds.value.coerceAtLeast(10)
-            val target = _totalTargetSeconds.value
-
-            val feedbackResult = geminiService.analyzeSpeech(
-                audioFile = recordedAudioFile,
-                referencePrompt = currentPrompt,
-                elapsedSeconds = elapsed
-            )
-
-            _analysisStepMessage.value = "Synthesizing pronunciation & accent feedback..."
-            delay(300)
-
-            _metrics.value = FluencyMetrics(
-                score = feedbackResult.pronunciationScore,
-                cefr = if (feedbackResult.pronunciationScore >= 90) "C1 Advanced" else "B2 Upper Intermediate",
-                wpm = feedbackResult.wpm,
-                pauses = feedbackResult.pauses,
-                fillers = feedbackResult.fillers,
-                accuracy = feedbackResult.accuracy,
-                durationSeconds = elapsed,
-                targetDurationSeconds = target,
-                transcription = feedbackResult.transcription,
-                feedback = feedbackResult.recommendations,
-                searchGroundingSummary = "Verified with Google Search (gemini-3.5-flash): Software engineering industry benchmarks confirm standard mobile crash-free target thresholds are typically 99.5%–99.9%.",
-                pronunciationScore = feedbackResult.pronunciationScore,
-                accentClarityScore = feedbackResult.accentClarityScore,
-                detectedAccentProfile = feedbackResult.detectedAccentProfile,
-                pronunciationFeedback = feedbackResult.pronunciationFeedback,
-                accentFeedback = feedbackResult.accentFeedback,
-                phoneticTips = feedbackResult.phoneticTips,
-                isRealAiGenerated = feedbackResult.isRealAiGenerated
-            )
-
-            // Increment practice minutes and evaluate milestones
-            val addedMinutes = (elapsed / 60).coerceAtLeast(1)
-            _totalPracticeMinutes.value += addedMinutes
-            _todayPracticedMinutes.value += addedMinutes
-            val currentTotalMinutes = _totalPracticeMinutes.value
-
-            _badges.value = _badges.value.map { badge ->
-                when (badge.id) {
-                    "practice_1hr" -> {
-                        val reached = currentTotalMinutes >= 60
-                        badge.copy(
-                            current = currentTotalMinutes,
-                            isUnlocked = reached,
-                            unlockedDate = if (reached && badge.unlockedDate == null) "Just now" else badge.unlockedDate
-                        )
-                    }
-                    "fluency_ace" -> {
-                        if (feedbackResult.pronunciationScore >= 90) {
-                            badge.copy(current = feedbackResult.pronunciationScore, isUnlocked = true, unlockedDate = "Just now")
-                        } else {
-                            badge.copy(current = maxOf(badge.current, feedbackResult.pronunciationScore))
-                        }
-                    }
-                    "long_turn_pro" -> {
-                        if (elapsed >= 120) {
-                            badge.copy(current = 120, isUnlocked = true, unlockedDate = "Just now")
-                        } else {
-                            badge.copy(current = maxOf(badge.current, elapsed))
-                        }
-                    }
-                    else -> badge
-                }
-            }
-
-            // Highlight unlocked milestone
-            _recentUnlockedBadge.value = _badges.value.find { it.id == "practice_1hr" } ?: _badges.value.firstOrNull { it.isUnlocked }
-
-            _appState.value = AppState.Result
+    fun clearAnalysisError() {
+        if (_analysisUiState.value is AnalysisUiState.Error) {
+            _analysisUiState.value = AnalysisUiState.Idle
         }
     }
 
-    fun finishAnalysis() {
-        performGeminiAnalysis()
+    private fun setLoadingStep(step: String) {
+        _analysisUiState.value = AnalysisUiState.Loading(step)
+    }
+
+    /**
+     * F1: the ONLY place that runs Gemini analysis. Guarded by [analysisJob] so
+     * at most one analysis runs per session — the Analyzing screen is passive.
+     */
+    private fun launchAnalysis() {
+        analysisJob?.cancel()
+        analysisJob = viewModelScope.launch {
+            setLoadingStep("Sending microphone recording to Gemini AI...")
+            delay(500)
+            setLoadingStep("Evaluating pronunciation phonemes, syllable stress & accent...")
+
+            val elapsed = _elapsedSeconds.value.coerceAtLeast(10)
+            val target = _totalTargetSeconds.value
+            val prompt = _currentPrompt.value
+
+            try {
+                val feedbackResult = geminiService.analyzeSpeech(
+                    audioFile = recordedAudioFile,
+                    referencePrompt = prompt.text,
+                    elapsedSeconds = elapsed
+                )
+
+                setLoadingStep("Synthesizing pronunciation & accent feedback...")
+                delay(300)
+
+                // F5: prefer the model-graded CEFR when real, else the local rubric.
+                val cefrLabel: String
+                val cefrJustification: String
+                if (feedbackResult.isRealAiGenerated && feedbackResult.cefr != null) {
+                    cefrLabel = feedbackResult.cefr
+                    cefrJustification = feedbackResult.cefrJustification
+                } else {
+                    val level = CefrMapper.mapToCefr(
+                        score = feedbackResult.pronunciationScore,
+                        accuracy = feedbackResult.accuracy,
+                        wpm = feedbackResult.wpm,
+                        pauses = feedbackResult.pauses
+                    )
+                    cefrLabel = level.label
+                    cefrJustification = ""
+                }
+
+                _metrics.value = FluencyMetrics(
+                    score = feedbackResult.pronunciationScore,
+                    cefr = cefrLabel,
+                    cefrJustification = cefrJustification,
+                    wpm = feedbackResult.wpm,
+                    pauses = feedbackResult.pauses,
+                    fillers = feedbackResult.fillers,
+                    accuracy = feedbackResult.accuracy,
+                    durationSeconds = elapsed,
+                    targetDurationSeconds = target,
+                    transcription = feedbackResult.transcription,
+                    feedback = feedbackResult.recommendations,
+                    pronunciationScore = feedbackResult.pronunciationScore,
+                    accentClarityScore = feedbackResult.accentClarityScore,
+                    detectedAccentProfile = feedbackResult.detectedAccentProfile,
+                    pronunciationFeedback = feedbackResult.pronunciationFeedback,
+                    accentFeedback = feedbackResult.accentFeedback,
+                    phoneticTips = feedbackResult.phoneticTips,
+                    isRealAiGenerated = feedbackResult.isRealAiGenerated
+                )
+
+                // F2: persist the session, then recompute all progress from the DB.
+                sessionDao.insert(
+                    SessionEntity(
+                        epochDay = currentEpochDay(),
+                        timestamp = System.currentTimeMillis(),
+                        durationSec = elapsed,
+                        score = feedbackResult.pronunciationScore,
+                        wpm = feedbackResult.wpm,
+                        pauses = feedbackResult.pauses,
+                        fillers = feedbackResult.fillers,
+                        accuracy = feedbackResult.accuracy,
+                        cefr = cefrLabel,
+                        promptId = prompt.id,
+                        isDemo = !feedbackResult.isRealAiGenerated
+                    )
+                )
+                refreshProgress()
+
+                _analysisUiState.value = AnalysisUiState.Idle
+                _appState.value = AppState.Result
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AnalysisException) {
+                // F8: surface the error — never silently substitute fake scores.
+                _analysisUiState.value =
+                    AnalysisUiState.Error(e.message ?: "Analysis failed. Retry when online.")
+                _appState.value = AppState.Dashboard
+            } catch (e: Exception) {
+                _analysisUiState.value =
+                    AnalysisUiState.Error("Something went wrong (${e.message}). Retry the analysis.")
+                _appState.value = AppState.Dashboard
+            }
+        }
     }
 
     fun backToDashboard() {
         _appState.value = AppState.Dashboard
+    }
+
+    override fun onCleared() {
+        analysisJob?.cancel()
+        amplitudeCollectJob?.cancel()
+        audioRecorderManager?.release()
+        super.onCleared()
+    }
+
+    companion object {
+        /** Static badge definitions; progress comes from [refreshProgress] (F2). */
+        fun baseBadges(): List<MilestoneBadge> = listOf(
+            MilestoneBadge(
+                id = "streak_7",
+                title = "7-Day Streak",
+                description = "Practiced speaking consistently for 7 consecutive days without skipping.",
+                category = "Consistency",
+                current = 0,
+                target = 7,
+                unit = "days",
+                icon = Icons.Default.Whatshot,
+                accentColor = Color(0xFFEA580C),
+                isUnlocked = false
+            ),
+            MilestoneBadge(
+                id = "practice_1hr",
+                title = "1 Hour Practiced",
+                description = "Reached 60 minutes of cumulative active speaking practice time.",
+                category = "Endurance",
+                current = 0,
+                target = 60,
+                unit = "min",
+                icon = Icons.Default.HourglassBottom,
+                accentColor = BluePrimary,
+                isUnlocked = false
+            ),
+            MilestoneBadge(
+                id = "first_drill",
+                title = "First Drill",
+                description = "Completed your initial timed fluency practice drill.",
+                category = "Foundation",
+                current = 0,
+                target = 1,
+                unit = "drill",
+                icon = Icons.Default.WorkspacePremium,
+                accentColor = SuccessGreen,
+                isUnlocked = false
+            ),
+            MilestoneBadge(
+                id = "pacing_master",
+                title = "Pacing Master",
+                description = "Maintain speech rate within target 120–150 WPM for 3 sessions.",
+                category = "Fluency",
+                current = 0,
+                target = 3,
+                unit = "sessions",
+                icon = Icons.Default.Speed,
+                accentColor = Color(0xFF7C3AED),
+                isUnlocked = false
+            ),
+            MilestoneBadge(
+                id = "fluency_ace",
+                title = "Fluency Ace",
+                description = "Score 90+ overall fluency rating with high grammar accuracy.",
+                category = "Excellence",
+                current = 0,
+                target = 90,
+                unit = "score",
+                icon = Icons.Default.EmojiEvents,
+                accentColor = WarningAmber,
+                isUnlocked = false
+            ),
+            MilestoneBadge(
+                id = "long_turn_pro",
+                title = "Long-Turn Pro",
+                description = "Complete a demanding 2-minute IELTS long-turn speaking drill.",
+                category = "Challenge",
+                current = 0,
+                target = 120,
+                unit = "sec",
+                icon = Icons.Default.Mic,
+                accentColor = Color(0xFF4F46E5),
+                isUnlocked = false
+            )
+        )
     }
 }
 
@@ -430,7 +581,14 @@ fun FluencyApp(modifier: Modifier = Modifier, viewModel: FluencyViewModel = view
     val todayPracticedMinutes by viewModel.todayPracticedMinutes.collectAsState()
     val showGoalDialog by viewModel.showGoalDialog.collectAsState()
     val audioAmplitude by viewModel.audioAmplitude.collectAsState()
-    val analysisStepMessage by viewModel.analysisStepMessage.collectAsState()
+    val analysisUiState by viewModel.analysisUiState.collectAsState()
+    val currentPrompt by viewModel.currentPrompt.collectAsState()
+    val userLevel by viewModel.userLevel.collectAsState()
+    val avgWpm by viewModel.avgWpm.collectAsState()
+    val showOnboarding by viewModel.showOnboarding.collectAsState()
+    val analysisStepMessage = (analysisUiState as? AnalysisUiState.Loading)?.step
+        ?: "Analyzing your speech with Gemini AI..."
+    val analysisError = (analysisUiState as? AnalysisUiState.Error)?.message
 
     var hasAudioPermission by remember {
         mutableStateOf(
@@ -445,7 +603,7 @@ fun FluencyApp(modifier: Modifier = Modifier, viewModel: FluencyViewModel = view
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
             hasAudioPermission = granted
-            viewModel.startRecording(context, viewModel.currentPrompt)
+            viewModel.startRecording(context)
         }
     )
 
@@ -457,27 +615,33 @@ fun FluencyApp(modifier: Modifier = Modifier, viewModel: FluencyViewModel = view
     ) { currentState ->
         when (currentState) {
             AppState.Dashboard -> DashboardScreen(
-                prompt = viewModel.currentPrompt,
+                prompt = currentPrompt,
+                userLevel = userLevel,
                 selectedPreset = viewModel.selectedPreset.collectAsState().value,
                 badges = badges,
                 streakDays = streakDays,
                 totalPracticeMinutes = totalPracticeMinutes,
                 dailyGoalMinutes = dailyGoalMinutes,
                 todayPracticedMinutes = todayPracticedMinutes,
+                avgWpm = avgWpm,
                 hasRecordPermission = hasAudioPermission,
+                analysisError = analysisError,
+                onRetryAnalysis = { viewModel.retryAnalysis() },
+                onDismissError = { viewModel.clearAnalysisError() },
+                onNewPrompt = { viewModel.requestNewPrompt() },
                 onOpenGoalDialog = { viewModel.openGoalDialog() },
                 onBadgeClick = { viewModel.selectBadge(it) },
                 onSelectPreset = { viewModel.selectPreset(it) },
                 onStartPractice = {
                     if (hasAudioPermission) {
-                        viewModel.startRecording(context, viewModel.currentPrompt)
+                        viewModel.startRecording(context)
                     } else {
                         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
                 }
             )
             AppState.Recording -> RecordingScreen(
-                prompt = viewModel.currentPrompt,
+                prompt = currentPrompt.text,
                 totalDuration = viewModel.totalTargetSeconds.collectAsState().value,
                 elapsedSeconds = viewModel.elapsedSeconds.collectAsState().value,
                 isPaused = viewModel.isPaused.collectAsState().value,
@@ -492,8 +656,7 @@ fun FluencyApp(modifier: Modifier = Modifier, viewModel: FluencyViewModel = view
                 onStop = { viewModel.stopRecording() }
             )
             AppState.Analyzing -> AnalyzingScreen(
-                stepMessage = analysisStepMessage,
-                onAnalysisComplete = { viewModel.finishAnalysis() }
+                stepMessage = analysisStepMessage
             )
             AppState.Result -> ResultScreen(
                 metrics = viewModel.metrics.collectAsState().value,
@@ -502,8 +665,9 @@ fun FluencyApp(modifier: Modifier = Modifier, viewModel: FluencyViewModel = view
                 recentBadge = recentUnlockedBadge,
                 onBadgeClick = { viewModel.selectBadge(it) },
                 onPracticeAgain = {
+                    viewModel.requestNewPrompt()
                     if (hasAudioPermission) {
-                        viewModel.startRecording(context, viewModel.currentPrompt)
+                        viewModel.startRecording(context)
                     } else {
                         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
@@ -530,6 +694,13 @@ fun FluencyApp(modifier: Modifier = Modifier, viewModel: FluencyViewModel = view
             onDismiss = { viewModel.selectBadge(null) }
         )
     }
+
+    // F10: first-run onboarding explaining mic use + demo vs AI mode.
+    if (showOnboarding) {
+        OnboardingDialog(
+            onContinue = { viewModel.completeOnboarding() }
+        )
+    }
 }
 
 /**
@@ -537,14 +708,20 @@ fun FluencyApp(modifier: Modifier = Modifier, viewModel: FluencyViewModel = view
  */
 @Composable
 fun DashboardScreen(
-    prompt: String,
+    prompt: PracticePrompt,
+    userLevel: CefrLevel,
     selectedPreset: TimerPreset,
     badges: List<MilestoneBadge>,
     streakDays: Int,
     totalPracticeMinutes: Int,
     dailyGoalMinutes: Int,
     todayPracticedMinutes: Int,
+    avgWpm: Int = 0,
     hasRecordPermission: Boolean = true,
+    analysisError: String? = null,
+    onRetryAnalysis: () -> Unit = {},
+    onDismissError: () -> Unit = {},
+    onNewPrompt: () -> Unit = {},
     onOpenGoalDialog: () -> Unit,
     onBadgeClick: (MilestoneBadge) -> Unit,
     onSelectPreset: (TimerPreset) -> Unit,
@@ -560,6 +737,47 @@ fun DashboardScreen(
         contentPadding = PaddingValues(top = 24.dp, bottom = 36.dp)
     ) {
         item {
+            // F8: visible error + retry when analysis fails (never silent fake scores).
+            if (analysisError != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("analysis_error_card"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
+                    border = BorderStroke(1.dp, DangerRed.copy(alpha = 0.4f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = "Analysis failed",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = DangerRed
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = analysisError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = onRetryAnalysis,
+                                modifier = Modifier.testTag("analysis_retry_button"),
+                                colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+                            ) {
+                                Text("Retry")
+                            }
+                            OutlinedButton(onClick = onDismissError) {
+                                Text("Dismiss", color = TextSecondary)
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             Text(
                 text = "Fluency Coach",
                 style = MaterialTheme.typography.headlineMedium.copy(
@@ -604,7 +822,8 @@ fun DashboardScreen(
                             .height(34.dp)
                             .background(BorderLight)
                     )
-                    MetricColumn("Avg Pacing", "132 WPM")
+                    // F2: real average from the session log ("—" until the first scored session).
+                    MetricColumn("Avg Pacing", if (avgWpm > 0) "$avgWpm WPM" else "—")
                 }
             }
 
@@ -672,15 +891,59 @@ fun DashboardScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // F9: level + category chip with shuffle for a new prompt.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = BluePrimary.copy(alpha = 0.1f)
+                        ) {
+                            Text(
+                                text = "${prompt.category.label} • ${prompt.level.label}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = BluePrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .testTag("prompt_level_chip")
+                            )
+                        }
+                        TextButton(
+                            onClick = onNewPrompt,
+                            modifier = Modifier.testTag("new_prompt_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "New prompt",
+                                tint = BluePrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("New prompt", color = BluePrimary)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "\"$prompt\"",
+                        text = "\"${prompt.text}\"",
                         style = MaterialTheme.typography.bodyLarge.copy(
                             fontWeight = FontWeight.Medium,
                             lineHeight = 24.sp
                         ),
                         color = TextPrimary
+                    )
+
+                    Text(
+                        text = "Your level: ${userLevel.label} — prompts adapt to it",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             }
@@ -775,8 +1038,9 @@ fun RecordingScreen(
     onTick: () -> Unit,
     onStop: () -> Unit
 ) {
-    LaunchedEffect(Unit) {
-        while (true) {
+    // F6: lifecycle-aware ticker — pauses stop the loop, leaving the screen cancels it.
+    LaunchedEffect(isPaused) {
+        while (!isPaused) {
             delay(1000)
             onTick()
         }
@@ -890,17 +1154,14 @@ fun RecordingScreen(
 }
 
 /**
- * Calm Analyzing Screen
+ * Calm Analyzing Screen. Passive by design (F1): the ViewModel owns the
+ * analysis job and drives Analyzing → Result, so this screen never fires
+ * callbacks or timers that could trigger a second analysis.
  */
 @Composable
 fun AnalyzingScreen(
-    stepMessage: String = "Analyzing your speech with Gemini AI...",
-    onAnalysisComplete: () -> Unit
+    stepMessage: String = "Analyzing your speech with Gemini AI..."
 ) {
-    LaunchedEffect(Unit) {
-        delay(2400)
-        onAnalysisComplete()
-    }
 
     Column(
         modifier = Modifier
@@ -979,6 +1240,34 @@ fun ResultScreen(
             )
 
             Spacer(modifier = Modifier.height(18.dp))
+
+            // F3: demo-mode banner — zero scores are never shown as a real evaluation.
+            if (!metrics.isRealAiGenerated) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("demo_mode_banner"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                    border = BorderStroke(1.dp, WarningAmber.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = "Demo mode — connect API key",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Add GEMINI_API_KEY to your .env file (see .env.example) to get real AI transcription and scoring. Scores below are placeholders, not an evaluation.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+            }
 
             // Duration Tracking Summary Banner
             Card(
@@ -1106,6 +1395,16 @@ fun ResultScreen(
                         fontWeight = FontWeight.Medium,
                         color = TextSecondary
                     )
+                    // F5: model-graded justification when available.
+                    if (metrics.cefrJustification.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = metrics.cefrJustification,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
 
@@ -1214,56 +1513,6 @@ fun ResultScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Search Grounding Card (gemini-3.5-flash with googleSearch tool)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceLight),
-                border = BorderStroke(1.dp, BorderLight)
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Outlined.Search,
-                                contentDescription = null,
-                                tint = SuccessGreen,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Fact Check Grounding",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                        }
-                        Text(
-                            text = "Google Search",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = SuccessGreen,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = metrics.searchGroundingSummary,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            lineHeight = 20.sp
-                        ),
-                        color = TextPrimary
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
             // Feedback & Recommendations Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1339,9 +1588,66 @@ fun ResultScreen(
     }
 }
 
+/**
+ * F10: one-time first-run onboarding. Explains microphone use, demo vs AI mode,
+ * and the daily goal — shown once, persisted via DataStore.
+ */
 @Composable
-fun CleanMetricCard(
-    label: String,
+fun OnboardingDialog(
+    onContinue: () -> Unit
+) {
+    Dialog(onDismissRequest = {}) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("onboarding_dialog"),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceLight)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = null,
+                    tint = BluePrimary,
+                    modifier = Modifier.size(44.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Welcome to Fluency Coach",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "• Tap the mic to start a timed speaking drill. Your audio is sent to Gemini AI for pronunciation and fluency feedback.\n\n• Without an API key the app runs in Demo mode with placeholder scores — add GEMINI_API_KEY in .env for real scoring.\n\n• Set a daily goal to build a streak. Progress is saved on this device.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Button(
+                    onClick = onContinue,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("onboarding_continue_button"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+                ) {
+                    Text("Got it — start speaking", fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CleanMetricCard(    label: String,
     value: String,
     unit: String,
     modifier: Modifier = Modifier

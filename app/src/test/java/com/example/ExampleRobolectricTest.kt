@@ -96,24 +96,27 @@ class ExampleRobolectricTest {
     assertEquals(0.75f, hourBadge.progressFraction, 0.01f)
     assertEquals(false, hourBadge.isUnlocked)
 
-    val vm = FluencyViewModel()
+    val vm = FluencyViewModel(ApplicationProvider.getApplicationContext())
     val initialBadges = vm.badges.value
     val streakInVm = initialBadges.find { it.id == "streak_7" }
     val hourInVm = initialBadges.find { it.id == "practice_1hr" }
     org.junit.Assert.assertNotNull(streakInVm)
     org.junit.Assert.assertNotNull(hourInVm)
-    assertEquals(true, streakInVm?.isUnlocked)
-    assertEquals(true, hourInVm?.isUnlocked)
+    // F2: fresh installs start locked with zero progress — nothing is hardcoded.
+    assertEquals(false, streakInVm?.isUnlocked)
+    assertEquals(false, hourInVm?.isUnlocked)
     assertEquals(7, streakInVm?.target)
     assertEquals(60, hourInVm?.target)
+    assertEquals(0, vm.streakDays.value)
+    assertEquals(0, vm.todayPracticedMinutes.value)
   }
 
   @Test
   fun `verify daily goal setting and progress calculations`() {
-    val vm = FluencyViewModel()
-    // Initial default goal is 15 minutes, today practiced starts at 6 minutes
+    val vm = FluencyViewModel(ApplicationProvider.getApplicationContext())
+    // Default goal is 15 minutes; nothing practiced yet on a fresh install (F2).
     assertEquals(15, vm.dailyGoalMinutes.value)
-    assertEquals(6, vm.todayPracticedMinutes.value)
+    assertEquals(0, vm.todayPracticedMinutes.value)
     assertEquals(false, vm.showGoalDialog.value)
 
     // Open and close dialog
@@ -151,9 +154,11 @@ class ExampleRobolectricTest {
     )
 
     org.junit.Assert.assertNotNull(fallback)
-    assertEquals(true, fallback.pronunciationScore in 70..100)
-    assertEquals(true, fallback.accentClarityScore in 70..100)
-    org.junit.Assert.assertTrue(fallback.transcription.isNotEmpty())
+    // F3: demo fallback is deterministic zeros flagged as non-AI — never fake scores.
+    assertEquals(0, fallback.pronunciationScore)
+    assertEquals(0, fallback.accentClarityScore)
+    assertEquals(false, fallback.isRealAiGenerated)
+    org.junit.Assert.assertTrue(fallback.transcription.contains("Demo"))
     org.junit.Assert.assertTrue(fallback.detectedAccentProfile.isNotEmpty())
     org.junit.Assert.assertTrue(fallback.pronunciationFeedback.isNotEmpty())
     org.junit.Assert.assertTrue(fallback.accentFeedback.isNotEmpty())

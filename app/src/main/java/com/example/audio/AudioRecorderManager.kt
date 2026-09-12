@@ -49,9 +49,12 @@ class AudioRecorderManager(
      * Starts polling amplitude for live audio wave visualization.
      */
     fun startRecording(): Result<File> {
+        // F7: never silently discard an in-progress recording. The caller must
+        // stop the active session explicitly before starting a new one.
+        if (_isRecording.value) {
+            return Result.failure(IllegalStateException("Already recording"))
+        }
         return try {
-            stopRecording() // Clean up any active session
-
             val audioFile = File(
                 context.cacheDir,
                 "speech_recording_${System.currentTimeMillis()}.m4a"

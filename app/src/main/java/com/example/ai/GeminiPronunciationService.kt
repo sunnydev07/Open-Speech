@@ -34,8 +34,13 @@ data class PronunciationAccentFeedback(
     val fillers: Int,
     val accuracy: Int,
     val recommendations: List<String>,
-    val isRealAiGenerated: Boolean = true
+    val isRealAiGenerated: Boolean = true,
+    val cefr: String? = null,
+    val cefrJustification: String = ""
 )
+
+/** Thrown when a real (API-key) analysis fails: network, HTTP error, or bad payload (F8). */
+class AnalysisException(message: String) : Exception(message)
 
 /**
  * Service that connects to Google Gemini AI to analyze recorded speech audio
@@ -53,6 +58,10 @@ class GeminiPronunciationService {
 
     /**
      * Sends the recorded audio file to Gemini AI for deep pronunciation & accent analysis.
+     *
+     * Returns a deterministic demo result only when no API key is configured (F3).
+     * With a key configured, failures throw [AnalysisException] so the UI can show
+     * an error + retry instead of silent fake scores (F8).
      */
     suspend fun analyzeSpeech(
         audioFile: File?,
@@ -61,9 +70,9 @@ class GeminiPronunciationService {
     ): PronunciationAccentFeedback = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
 
-        // If no API key is provided or it's the template placeholder, provide fallback diagnostic feedback
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            Log.d("GeminiAI", "Using fallback analysis: GEMINI_API_KEY is placeholder or empty")
+        // If no API key is provided or it's the template placeholder, provide deterministic demo feedback
+        if (!isApiKeyConfigured()) {
+            Log.d("GeminiAI", "Using demo analysis: GEMINI_API_KEY is placeholder or empty")
             return@withContext generateDiagnosticFallback(referencePrompt, elapsedSeconds)
         }
 
@@ -111,6 +120,8 @@ class GeminiPronunciationService {
                   "pauses": 2, // count of pauses > 1s
                   "fillers": 1, // count of filler words (um, uh, like)
                   "accuracy": 95, // grammatical accuracy percentage
+                  "cefr": "B2 Upper Intermediate", // one of: A2 Elementary, B1 Intermediate, B2 Upper Intermediate, C1 Advanced
+                  "cefrJustification": "One sentence justifying the CEFR level from score, accuracy, and pacing",
                   "recommendations": [
                     "Practice linking vowel-to-vowel transitions smoothly.",
                     "Slow down slightly on polysyllabic terminology for crisper articulation."
@@ -155,10 +166,13 @@ class GeminiPronunciationService {
             val response = okHttpClient.newCall(request).execute()
             if (!response.isSuccessful) {
                 Log.e("GeminiAI", "API response error ${response.code}: ${response.message}")
-                return@withContext generateDiagnosticFallback(referencePrompt, elapsedSeconds)
+                throw AnalysisException("Gemini request failed (HTTP ${response.code}). Check your connection and retry.")
             }
 
             val responseString = response.body?.string() ?: ""
+            if (responseString.isBlank()) {
+                throw AnalysisException("Empty response from Gemini. Retry the analysis.")
+            }
             val jsonResponse = JSONObject(responseString)
             val candidates = jsonResponse.optJSONArray("candidates")
             val firstCandidate = candidates?.optJSONObject(0)
@@ -169,12 +183,19 @@ class GeminiPronunciationService {
             if (text.isNotBlank()) {
                 parseFeedbackJson(text, elapsedSeconds, true)
             } else {
-                generateDiagnosticFallback(referencePrompt, elapsedSeconds)
+                throw AnalysisException("Gemini returned no feedback text. Retry the analysis.")
             }
+        } catch (e: AnalysisException) {
+            throw e
         } catch (e: Exception) {
             Log.e("GeminiAI", "Error invoking Gemini pronunciation analysis", e)
-            generateDiagnosticFallback(referencePrompt, elapsedSeconds)
+            throw AnalysisException("Could not reach Gemini (${e.message}). Check your connection and retry.")
         }
+    }
+
+    fun isApiKeyConfigured(): Boolean {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        return apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY"
     }
 
     private fun parseFeedbackJson(
@@ -241,6 +262,8 @@ class GeminiPronunciationService {
             val pauses = obj.optInt("pauses", 2)
             val fillers = obj.optInt("fillers", 1)
             val accuracy = obj.optInt("accuracy", 94)
+            val cefr = obj.optString("cefr", "").ifBlank { null }
+            val cefrJustification = obj.optString("cefrJustification", "")
 
             PronunciationAccentFeedback(
                 transcription = transcription,
@@ -255,46 +278,45 @@ class GeminiPronunciationService {
                 fillers = fillers,
                 accuracy = accuracy,
                 recommendations = recList,
-                isRealAiGenerated = isRealAi
+                isRealAiGenerated = isRealAi,
+                cefr = cefr,
+                cefrJustification = cefrJustification
             )
         } catch (e: Exception) {
             Log.e("GeminiAI", "Failed to parse Gemini feedback JSON", e)
-            generateDiagnosticFallback("", elapsedSeconds)
+            throw AnalysisException("Gemini returned an unreadable response. Retry the analysis.")
         }
     }
 
+    /**
+     * Deterministic demo result for runs without an API key (F3).
+     * All scores are zero so demo data is never mistaken for a real evaluation;
+     * the UI must label it "Demo mode" (see ResultScreen demo banner).
+     */
     fun generateDiagnosticFallback(
         prompt: String,
         elapsedSeconds: Int
     ): PronunciationAccentFeedback {
-        val wpm = (128..142).random()
-        val pauses = (1..3).random()
-        val fillers = (0..2).random()
-        val pronunciationScore = (85..92).random()
-        val accentScore = (82..89).random()
-
         return PronunciationAccentFeedback(
-            transcription = if (prompt.isNotBlank()) {
-                "Regarding the challenge: $prompt — In our response, we systematically resolved the bottleneck by restructuring priorities and maintaining open team collaboration."
-            } else {
-                "In my previous project, we faced a tight deadline when delivering our mobile app. We systematically profiled performance bottlenecks and successfully launched with 99.8% stability."
-            },
-            pronunciationScore = pronunciationScore,
-            accentClarityScore = accentScore,
-            detectedAccentProfile = "Neutral International English • Clear consonant boundaries with minor vowel tension",
-            pronunciationFeedback = "Solid vowel openness on stressed words. Syllable timing was mostly consistent with clear plosive releases on /p/, /t/, and /k/.",
-            accentFeedback = "Intonation rose and fell naturally with grammatical clause boundaries. Pitch variation maintained listener engagement throughout the drill.",
+            transcription = "Demo transcript — connect a GEMINI_API_KEY in .env to transcribe and score your real speech.",
+            pronunciationScore = 0,
+            accentClarityScore = 0,
+            detectedAccentProfile = "Demo mode — no audio was analyzed",
+            pronunciationFeedback = "Demo mode: record with a configured API key to receive articulation feedback.",
+            accentFeedback = "Demo mode: record with a configured API key to receive rhythm and intonation feedback.",
             phoneticTips = defaultPhoneticTips(),
-            wpm = wpm,
-            pauses = pauses,
-            fillers = fillers,
-            accuracy = 94,
+            wpm = 0,
+            pauses = 0,
+            fillers = 0,
+            accuracy = 0,
             recommendations = listOf(
-                "Keep final /d/ and /t/ consonants crisp without swallowing them into following words.",
-                "Lengthen stressed vowels slightly more than unstressed schwa /ə/ sounds for greater rhythm contrast.",
-                "Smoothly link 'systematically resolved' for a more fluid native cadence."
+                "Add your GEMINI_API_KEY to the .env file (see .env.example) to unlock real AI scoring.",
+                "Until then, use the timer drills to build a daily speaking habit.",
+                "Each scored session will appear here with pronunciation, accent, and pacing feedback."
             ),
-            isRealAiGenerated = false
+            isRealAiGenerated = false,
+            cefr = null,
+            cefrJustification = ""
         )
     }
 
