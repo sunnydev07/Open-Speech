@@ -1,0 +1,6 @@
+{
+  "name": "Fluency Coach",
+  "description": "An AI-driven English speaking coach app.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
