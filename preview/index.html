@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fluency Coach - App Preview & Interactive Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #2563EB;
+      --primary-dark: #1D4ED8;
+      --primary-light: #EFF6FF;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --accent-orange: #EA580C;
+      --bg-light: #F8FAFC;
+      --surface: #FFFFFF;
+      --text-primary: #0F172A;
+      --text-secondary: #64748B;
+      --text-muted: #94A3B8;
+      --border: #E2E8F0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background-color: #0B0F17;
+      color: #E2E8F0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #2563EB, #3B82F6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+
+    .brand-subtitle {
+      font-size: 0.8rem;
+      color: #94A3B8;
+    }
+
+    .nav-tabs {
+      display: flex;
+      background: rgba(30, 41, 59, 0.8);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .nav-tab {
+      padding: 8px 18px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #94A3B8;
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .nav-tab.active {
+      background: #2563EB;
+      color: #FFFFFF;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    }
+
+    .apk-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34D399;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 32px 16px;
+      gap: 40px;
+    }
+
+    /* Device Mockup Container */
+    .device-wrapper {
+      position: relative;
+    }
+
+    .device-frame {
+      width: 390px;
+      height: 820px;
+      background: #000;
+      border-radius: 46px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 10px #1E293B, 0 0 0 12px #334155;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .device-notch {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 140px;
+      height: 28px;
+      background: #000;
+      border-bottom-left-radius: 18px;
+      border-bottom-right-radius: 18px;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .device-notch::after {
+      content: '';
+      width: 12px;
+      height: 12px;
+      background: #111;
+      border-radius: 50%;
+      border: 2px solid #222;
+    }
+
+    .status-bar {
+      height: 44px;
+      background: var(--bg-light);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 24px 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      z-index: 90;
+    }
+
+    .app-viewport {
+      flex: 1;
+      background: var(--bg-light);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .app-viewport::-webkit-scrollbar {
+      width: 4px;
+    }
+    .app-viewport::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 4px;
+    }
+
+    /* App UI Styling replicating Compose design */
+    .screen {
+      display: none;
+      flex-direction: column;
+      padding: 16px 20px 32px;
+      min-height: 100%;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    .screen-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .screen-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .screen-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 4px 0;
+    }
+
+    .stat-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .stat-val {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+    }
+
+    .stat-label {
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .stat-divider {
+      width: 1px;
+      height: 32px;
+      background: var(--border);
+    }
+
+    /* Daily Goal Card */
+    .goal-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .badge-chip {
+      background: rgba(37, 99, 235, 0.1);
+      color: var(--primary);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .progress-track {
+      height: 10px;
+      background: var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2563EB, #3B82F6);
+      border-radius: 6px;
+      transition: width 0.4s ease;
+    }
+
+    /* Badges Horizontal scroll */
+    .badges-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 6px 2px 10px;
+    }
+    .badges-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .badge-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 68px;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .badge-item:hover {
+      transform: translateY(-2px);
+    }
+
+    .badge-circle {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 6px;
+      border: 2px solid transparent;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    }
+
+    .badge-name {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-align: center;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+
+    .badge-status {
+      font-size: 0.62rem;
+      color: var(--text-secondary);
+    }
+
+    /* Duration Preset Pills */
+    .presets-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .preset-pill {
+      flex: 1;
+      padding: 10px 4px;
+      text-align: center;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .preset-pill.active {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    /* Drill prompt card */
+    .drill-tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .drill-prompt {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      line-height: 1.45;
+    }
+
+    /* Record Button */
+    .record-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .record-btn {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 32px;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(37, 99, 235, 0.4);
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .record-btn:hover {
+      transform: scale(1.06);
+      background: var(--primary-dark);
+    }
+
+    .record-btn:active {
+      transform: scale(0.95);
+    }
+
+    .gemini-pill {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      color: var(--primary);
+      font-weight: 600;
+      background: rgba(37, 99, 235, 0.08);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+
+    /* Screen 2: Recording */
+    .recording-screen {
+      justify-content: space-between;
+      min-height: 100%;
+    }
+
+    .timer-circle-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 30px 0;
+      position: relative;
+    }
+
+    .timer-svg {
+      width: 220px;
+      height: 220px;
+      transform: rotate(-90deg);
+    }
+
+    .timer-circle-bg {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 10;
+    }
+
+    .timer-circle-bar {
+      fill: none;
+      stroke: var(--primary);
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-dasharray: 628;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 1s linear;
+    }
+
+    .timer-text-content {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .timer-digits {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .timer-sub {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .controls-row {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .btn-circle {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      cursor: pointer;
+      color: var(--text-primary);
+      transition: all 0.15s ease;
+    }
+
+    .btn-circle.stop {
+      background: #EF4444;
+      border-color: #EF4444;
+      color: #fff;
+    }
+
+    .wave-bars {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      height: 36px;
+      margin-bottom: 12px;
+    }
+
+    .bar {
+      width: 4px;
+      background: var(--primary);
+      border-radius: 3px;
+      animation: soundWave 0.8s ease-in-out infinite alternate;
+    }
+
+    @keyframes soundWave {
+      0% { height: 6px; }
+      100% { height: 32px; }
+    }
+
+    /* Screen 3: Analyzing */
+    .analyzing-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .spinner {
+      width: 56px;
+      height: 56px;
+      border: 5px solid rgba(37, 99, 235, 0.15);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 24px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Screen 4: Results */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .metric-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .metric-box-val {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 4px 0 2px;
+    }
+
+    .metric-box-unit {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .pronunciation-card {
+      background: #FFFFFF;
+      border: 1px solid #DBEAFE;
+      border-left: 4px solid var(--primary);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(37, 99, 235, 0.1);
+      color: var(--primary);
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+    }
+
+    .phonetic-tip {
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 8px;
+      font-size: 0.75rem;
+    }
+
+    .phonetic-word {
+      font-weight: 700;
+      color: var(--primary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .btn-action {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-action.primary {
+      background: var(--primary);
+      color: #FFFFFF;
+      margin-bottom: 10px;
+    }
+
+    .btn-action.secondary {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--text-primary);
+    }
+
+    /* Native Screenshots Gallery Panel */
+    .gallery-panel {
+      flex: 1;
+      max-width: 600px;
+      background: #131B2A;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 24px;
+    }
+
+    .gallery-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .gallery-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+
+    .screen-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .screen-pill {
+      background: #1E293B;
+      color: #94A3B8;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 6px 14px;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .screen-pill.active {
+      background: #2563EB;
+      color: #FFFFFF;
+    }
+
+    .screenshot-view {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #090D14;
+      border-radius: 14px;
+      padding: 16px;
+      min-height: 520px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .screenshot-view img {
+      max-height: 560px;
+      width: auto;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Dialog Modal Overlay */
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-box {
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 24px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-align: center;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🎙️</div>
+      <div>
+        <div class="brand-title">Fluency Coach</div>
+        <div class="brand-subtitle">Native Jetpack Compose Speech Coach • Gemini AI Powered</div>
+      </div>
+    </div>
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchView('interactive')">📱 Live Interactive Demo</button>
+      <button class="nav-tab" onclick="switchView('gallery')">📸 Native Pixel 8 Renders</button>
+    </div>
+
+    <a href="./app-debug.apk" download="FluencyCoach.apk" style="text-decoration: none;" title="Download the Android app directly from this site">
+      <div class="apk-badge">
+        <span>⚡ APK Ready (23MB)</span>
+      </div>
+    </a>
+  </header>
+
+  <main>
+    <!-- Interactive Phone Simulator -->
+    <div class="device-wrapper" id="simulator-panel">
+      <div class="device-frame">
+        <div class="device-notch"></div>
+        <div class="status-bar">
+          <span id="device-clock">9:41</span>
+          <span>5G  🔋 98%</span>
+        </div>
+
+        <div class="app-viewport">
+          <!-- Screen 1: Dashboard -->
+          <div class="screen active" id="screen-dashboard">
+            <div class="screen-header">
+              <div class="screen-title">Fluency Coach</div>
+              <div class="screen-subtitle">Timed speaking sessions with AI fluency feedback</div>
+            </div>
+
+            <div class="card">
+              <div class="stat-row">
+                <div class="stat-col">
+                  <div class="stat-val" id="disp-streak">7 days 🔥</div>
+                  <div class="stat-label">Streak</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-col">
+                  <div class="stat-val" id="disp-today-goal">6 / 15m</div>
+                  <div class="stat-label">Today's Goal</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-col">
+                  <div class="stat-val">132 WPM</div>
+                  <div class="stat-label">Avg Pacing</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Daily Goal Card -->
+            <div class="card" style="cursor: pointer;" onclick="openGoalDialog()">
+              <div class="goal-card-header">
+                <div>
+                  <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);">DAILY GOAL</div>
+                  <div style="font-weight: 700; font-size: 1.05rem; color: var(--text-primary);" id="disp-goal-progress">6 / 15 min</div>
+                </div>
+                <div class="badge-chip" id="disp-goal-pct">40%</div>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" id="goal-bar-fill" style="width: 40%;"></div>
+              </div>
+              <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 4px;">
+                9 min remaining to reach today's target. ✏️ Tap to adjust
+              </div>
+            </div>
+
+            <!-- Milestone Rewards -->
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px;">
+              MILESTONE REWARDS
+            </div>
+            <div class="badges-scroll">
+              <div class="badge-item" onclick="openBadgeDialog('streak')">
+                <div class="badge-circle" style="background: rgba(234, 88, 12, 0.15); border-color: #EA580C;">🔥</div>
+                <div class="badge-name">7-Day Streak</div>
+                <div class="badge-status" style="color: #EA580C; font-weight: 700;">Unlocked</div>
+              </div>
+              <div class="badge-item" onclick="openBadgeDialog('hour')">
+                <div class="badge-circle" style="background: rgba(37, 99, 235, 0.15); border-color: #2563EB;">⏳</div>
+                <div class="badge-name">1 Hr Practiced</div>
+                <div class="badge-status" style="color: #2563EB; font-weight: 700;">Unlocked</div>
+              </div>
+              <div class="badge-item" onclick="openBadgeDialog('first')">
+                <div class="badge-circle" style="background: rgba(16, 185, 129, 0.15); border-color: #10B981;">🏆</div>
+                <div class="badge-name">First Drill</div>
+                <div class="badge-status" style="color: #10B981; font-weight: 700;">Unlocked</div>
+              </div>
+              <div class="badge-item" onclick="openBadgeDialog('pacing')">
+                <div class="badge-circle" style="background: rgba(124, 58, 237, 0.15); border-color: #7C3AED;">⚡</div>
+                <div class="badge-name">Pacing Master</div>
+                <div class="badge-status" style="color: #7C3AED; font-weight: 700;">Unlocked</div>
+              </div>
+              <div class="badge-item" onclick="openBadgeDialog('fluency')">
+                <div class="badge-circle" style="background: #F1F5F9; border-color: #CBD5E1; opacity: 0.7;">🔒</div>
+                <div class="badge-name">Fluency Ace</div>
+                <div class="badge-status">86/90</div>
+              </div>
+            </div>
+
+            <!-- Timer Presets -->
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin: 12px 0 8px;">
+              PRACTICE DURATION
+            </div>
+            <div class="presets-row">
+              <div class="preset-pill" onclick="selectPreset(30, this)">30s</div>
+              <div class="preset-pill active" onclick="selectPreset(60, this)">1 min</div>
+              <div class="preset-pill" onclick="selectPreset(120, this)">2 min</div>
+              <div class="preset-pill" onclick="selectPreset(0, this)">Free</div>
+            </div>
+
+            <!-- Prompt Card -->
+            <div class="card">
+              <div class="drill-tag">SPEAKING DRILL • <span id="disp-preset-label">1 MIN</span></div>
+              <div class="drill-prompt">
+                "Describe a challenging situation you overcame at work or school, and what you learned from it."
+              </div>
+            </div>
+
+            <!-- Record Button -->
+            <div class="record-container">
+              <button class="record-btn" onclick="startSession()">🎙️</button>
+              <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-top: 8px;">
+                Tap to begin <span id="disp-btn-dur">1 min</span> session
+              </div>
+              <div class="gemini-pill">
+                <span>✨</span> Mic enabled • Gemini AI Pronunciation & Accent
+              </div>
+            </div>
+          </div>
+
+          <!-- Screen 2: Recording -->
+          <div class="screen recording-screen" id="screen-recording">
+            <div class="card" style="margin-top: 10px;">
+              <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary); margin-bottom: 4px;">TOPIC</div>
+              <div style="font-size: 0.85rem; color: var(--text-primary); line-height: 1.4;">
+                "Describe a challenging situation you overcame at work or school, and what you learned from it."
+              </div>
+            </div>
+
+            <div class="timer-circle-wrap">
+              <svg class="timer-svg" viewBox="0 0 220 220">
+                <circle class="timer-circle-bg" cx="110" cy="110" r="95"></circle>
+                <circle class="timer-circle-bar" id="svg-timer-bar" cx="110" cy="110" r="95"></circle>
+              </svg>
+              <div class="timer-text-content">
+                <div class="timer-digits" id="rec-digits">01:00</div>
+                <div class="timer-sub" id="rec-status-text">Countdown • Stay fluent</div>
+              </div>
+            </div>
+
+            <div>
+              <div class="wave-bars">
+                <div class="bar" style="animation-duration: 0.5s;"></div>
+                <div class="bar" style="animation-duration: 0.8s;"></div>
+                <div class="bar" style="animation-duration: 0.3s;"></div>
+                <div class="bar" style="animation-duration: 0.9s;"></div>
+                <div class="bar" style="animation-duration: 0.6s;"></div>
+                <div class="bar" style="animation-duration: 0.4s;"></div>
+                <div class="bar" style="animation-duration: 0.7s;"></div>
+                <div class="bar" style="animation-duration: 0.5s;"></div>
+              </div>
+
+              <div style="text-align: center; font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 16px;">
+                🔴 Microphone Live • Gemini AI Pronunciation & Accent
+              </div>
+
+              <div class="controls-row">
+                <button class="btn-circle" onclick="add15Seconds()" title="Add 15s">+15</button>
+                <button class="btn-circle stop" onclick="stopSession()" title="Finish drill">⏹️</button>
+                <button class="btn-circle" id="btn-pause" onclick="togglePause()" title="Pause/Resume">⏸️</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Screen 3: Analyzing -->
+          <div class="screen" id="screen-analyzing" style="justify-content: center;">
+            <div class="analyzing-center">
+              <div class="spinner"></div>
+              <div style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">
+                Analyzing your speech...
+              </div>
+              <div style="font-size: 0.85rem; font-weight: 600; color: var(--primary);" id="analyzing-msg">
+                Sending audio recording to Gemini AI...
+              </div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px;">
+                Evaluating phonemes, syllable stress, intonation & accent clarity
+              </div>
+            </div>
+          </div>
+
+          <!-- Screen 4: Results -->
+          <div class="screen" id="screen-results">
+            <div style="text-align: center; margin: 10px 0 16px;">
+              <div style="font-size: 36px;">🎉</div>
+              <div style="font-size: 1.3rem; font-weight: 800; color: var(--text-primary);">Session Complete</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">Practice time recorded & analyzed</div>
+            </div>
+
+            <!-- Score banner -->
+            <div class="card" style="text-align: center; background: linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 100%);">
+              <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">FLUENCY RATING</div>
+              <div style="font-size: 2.4rem; font-weight: 800; color: var(--primary); line-height: 1.2;">86<span style="font-size: 1.2rem; color: var(--text-secondary);"> / 100</span></div>
+              <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">Level: B2 Upper Intermediate</div>
+            </div>
+
+            <!-- Pronunciation & Accent Card -->
+            <div class="pronunciation-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary);">GEMINI PRONUNCIATION & ACCENT</div>
+                <div class="score-badge">88% Articulation</div>
+              </div>
+              <div style="font-size: 0.78rem; color: var(--text-primary); line-height: 1.4; margin-bottom: 8px;">
+                <strong>Detected Profile:</strong> General American cadence with crisp consonant articulation.
+              </div>
+              <div class="phonetic-tip">
+                <span class="phonetic-word">consequently</span> <span style="color: var(--text-secondary);">/ˈkɒn.sɪ.kwənt.li/</span>
+                <div style="color: var(--text-secondary); margin-top: 2px;">💡 Stress initial syllable <strong>'CON-'</strong>, keeping '-se-quent-ly' light.</div>
+              </div>
+              <div class="phonetic-tip">
+                <span class="phonetic-word">bottleneck</span> <span style="color: var(--text-secondary);">/ˈbɒt.əl.nek/</span>
+                <div style="color: var(--text-secondary); margin-top: 2px;">💡 Articulate a crisp flap 't' for standard American clarity.</div>
+              </div>
+            </div>
+
+            <!-- 4 Metric Cards -->
+            <div class="metric-grid">
+              <div class="metric-box">
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">SPEECH RATE</div>
+                <div class="metric-box-val">132</div>
+                <div class="metric-box-unit">WPM (Target 120-150)</div>
+              </div>
+              <div class="metric-box">
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">PAUSES</div>
+                <div class="metric-box-val">2</div>
+                <div class="metric-box-unit">&gt;1s hesitation</div>
+              </div>
+              <div class="metric-box">
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">FILLER WORDS</div>
+                <div class="metric-box-val">1</div>
+                <div class="metric-box-unit">um / uh</div>
+              </div>
+              <div class="metric-box">
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">ACCURACY</div>
+                <div class="metric-box-val">94%</div>
+                <div class="metric-box-unit">grammar & syntax</div>
+              </div>
+            </div>
+
+            <!-- Transcription -->
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 6px;">
+                <span style="font-weight: 700; color: var(--primary);">SPEECH TRANSCRIPTION</span>
+                <span>gemini-3.5-transcribe</span>
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.45;">
+                "In my previous project, we faced a tight deadline when delivering our mobile app. The primary bottleneck was unexpected performance lag on entry-level devices. I organized an emergency triage session with the engineering team..."
+              </div>
+            </div>
+
+            <!-- Search Grounding -->
+            <div class="card" style="border-left: 3px solid var(--success);">
+              <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--success); margin-bottom: 4px; font-weight: 700;">
+                <span>FACT CHECK GROUNDING</span>
+                <span>Google Search</span>
+              </div>
+              <div style="font-size: 0.78rem; color: var(--text-primary); line-height: 1.4;">
+                Verified with Google Search: Software engineering industry benchmarks confirm standard mobile crash-free target thresholds are typically 99.5%–99.9%.
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <button class="btn-action primary" onclick="startSession()">🔄 Practice Again</button>
+            <button class="btn-action secondary" onclick="backToHome()">🏠 Back to Home</button>
+          </div>
+        </div>
+
+        <!-- Goal Modal -->
+        <div class="modal-overlay" id="goal-modal">
+          <div class="modal-box">
+            <div class="modal-title">Set Daily Speaking Goal</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; margin-bottom: 16px;">
+              Choose target practice duration per day:
+            </div>
+            <div class="presets-row" style="margin-bottom: 20px;">
+              <div class="preset-pill" onclick="setGoal(5)">5m</div>
+              <div class="preset-pill" onclick="setGoal(10)">10m</div>
+              <div class="preset-pill active" onclick="setGoal(15)">15m</div>
+              <div class="preset-pill" onclick="setGoal(20)">20m</div>
+              <div class="preset-pill" onclick="setGoal(30)">30m</div>
+            </div>
+            <button class="btn-action primary" onclick="closeGoalDialog()">Save Daily Target</button>
+          </div>
+        </div>
+
+        <!-- Badge Modal -->
+        <div class="modal-overlay" id="badge-modal">
+          <div class="modal-box" style="text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 12px;" id="modal-badge-icon">🔥</div>
+            <div class="modal-title" id="modal-badge-title">7-Day Streak</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 16px;" id="modal-badge-desc">
+              Practiced speaking consistently for 7 consecutive days without skipping.
+            </div>
+            <div style="background: rgba(16, 185, 129, 0.1); color: var(--success); font-weight: 700; padding: 6px; border-radius: 8px; font-size: 0.8rem; margin-bottom: 16px;" id="modal-badge-status">
+              Unlocked • Consistency Badge
+            </div>
+            <button class="btn-action secondary" onclick="closeBadgeDialog()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gallery Panel for Native Android Screenshots -->
+    <div class="gallery-panel" id="gallery-panel">
+      <div class="gallery-header">
+        <div>
+          <div class="gallery-title">Native Pixel 8 Compose Screenshots</div>
+          <div style="font-size: 0.8rem; color: #94A3B8; margin-top: 4px;">
+            Rendered with Roborazzi & Robolectric directly from Kotlin Compose code
+          </div>
+        </div>
+      </div>
+
+      <div class="screen-pills">
+        <div class="screen-pill active" onclick="showScreenshot('dashboard')">Dashboard</div>
+        <div class="screen-pill" onclick="showScreenshot('recording')">Live Recording</div>
+        <div class="screen-pill" onclick="showScreenshot('analyzing')">AI Analyzing</div>
+        <div class="screen-pill" onclick="showScreenshot('result')">Fluency Results</div>
+        <div class="screen-pill" onclick="showScreenshot('goal_dialog')">Daily Goal Dialog</div>
+        <div class="screen-pill" onclick="showScreenshot('badge_dialog')">Milestone Dialog</div>
+      </div>
+
+      <div class="screenshot-view">
+        <img id="native-shot-img" src="screenshots/dashboard.png" alt="Native Android Screenshot">
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Simulator Logic
+    let currentPresetSeconds = 60;
+    let timerDuration = 60;
+    let elapsed = 0;
+    let timerInterval = null;
+    let isPaused = false;
+    let dailyGoal = 15;
+    let practiced = 6;
+
+    function selectPreset(sec, el) {
+      currentPresetSeconds = sec;
+      timerDuration = sec;
+      document.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      const label = sec === 0 ? 'FREE FLOW' : (sec >= 60 ? `${sec/60} MIN` : `${sec} SEC`);
+      document.getElementById('disp-preset-label').innerText = label;
+      document.getElementById('disp-btn-dur').innerText = label.toLowerCase();
+    }
+
+    function switchScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    function startSession() {
+      elapsed = 0;
+      isPaused = false;
+      timerDuration = currentPresetSeconds > 0 ? currentPresetSeconds : 60;
+      switchScreen('screen-recording');
+      updateTimerDisplay();
+
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (!isPaused) {
+          elapsed++;
+          updateTimerDisplay();
+          if (currentPresetSeconds > 0 && elapsed >= timerDuration) {
+            stopSession();
+          }
+        }
+      }, 1000);
+    }
+
+    function togglePause() {
+      isPaused = !isPaused;
+      document.getElementById('btn-pause').innerText = isPaused ? '▶️' : '⏸️';
+      document.getElementById('rec-status-text').innerText = isPaused ? 'Paused • Tap resume' : 'Countdown • Stay fluent';
+    }
+
+    function add15Seconds() {
+      timerDuration += 15;
+      updateTimerDisplay();
+    }
+
+    function updateTimerDisplay() {
+      const remaining = Math.max(0, timerDuration - elapsed);
+      const m = Math.floor(remaining / 60);
+      const s = remaining % 60;
+      document.getElementById('rec-digits').innerText = 
+        `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+      const total = timerDuration;
+      const fraction = total > 0 ? (remaining / total) : 1;
+      const circumference = 2 * Math.PI * 95; // 596.9
+      const offset = circumference * (1 - fraction);
+      document.getElementById('svg-timer-bar').style.strokeDashoffset = offset;
+    }
+
+    function stopSession() {
+      if (timerInterval) clearInterval(timerInterval);
+      switchScreen('screen-analyzing');
+
+      const messages = [
+        "Sending microphone recording to Gemini AI...",
+        "Evaluating pronunciation phonemes, syllable stress & accent...",
+        "Synthesizing pronunciation & accent feedback..."
+      ];
+      let idx = 0;
+      const stepInterval = setInterval(() => {
+        idx++;
+        if (idx < messages.length) {
+          document.getElementById('analyzing-msg').innerText = messages[idx];
+        } else {
+          clearInterval(stepInterval);
+          practiced += Math.max(1, Math.round(elapsed / 60));
+          document.getElementById('disp-today-goal').innerText = `${practiced} / ${dailyGoal}m`;
+          document.getElementById('disp-goal-progress').innerText = `${practiced} / ${dailyGoal} min`;
+          const pct = Math.min(100, Math.round((practiced / dailyGoal) * 100));
+          document.getElementById('disp-goal-pct').innerText = `${pct}%`;
+          document.getElementById('goal-bar-fill').style.width = `${pct}%`;
+          switchScreen('screen-results');
+        }
+      }, 800);
+    }
+
+    function backToHome() {
+      switchScreen('screen-dashboard');
+    }
+
+    // Modal controls
+    function openGoalDialog() {
+      document.getElementById('goal-modal').classList.add('active');
+    }
+    function closeGoalDialog() {
+      document.getElementById('goal-modal').classList.remove('active');
+    }
+    function setGoal(mins) {
+      dailyGoal = mins;
+      document.getElementById('disp-today-goal').innerText = `${practiced} / ${dailyGoal}m`;
+      document.getElementById('disp-goal-progress').innerText = `${practiced} / ${dailyGoal} min`;
+      const pct = Math.min(100, Math.round((practiced / dailyGoal) * 100));
+      document.getElementById('disp-goal-pct').innerText = `${pct}%`;
+      document.getElementById('goal-bar-fill').style.width = `${pct}%`;
+      closeGoalDialog();
+    }
+
+    const badgeData = {
+      streak: { icon: '🔥', title: '7-Day Streak', desc: 'Practiced speaking consistently for 7 consecutive days without skipping.', status: 'Unlocked • Yesterday' },
+      hour: { icon: '⏳', title: '1 Hour Practiced', desc: 'Reached 60 minutes of cumulative active speaking practice time.', status: 'Unlocked • Today' },
+      first: { icon: '🏆', title: 'First Drill', desc: 'Completed your initial timed fluency practice drill.', status: 'Unlocked • 3 days ago' },
+      pacing: { icon: '⚡', title: 'Pacing Master', desc: 'Maintained speech rate within target 120–150 WPM for 3 sessions.', status: 'Unlocked • Just now' },
+      fluency: { icon: '🔒', title: 'Fluency Ace', desc: 'Score 90+ overall fluency rating with high grammar accuracy.', status: 'In Progress (86 / 90)' }
+    };
+
+    function openBadgeDialog(key) {
+      const data = badgeData[key];
+      document.getElementById('modal-badge-icon').innerText = data.icon;
+      document.getElementById('modal-badge-title').innerText = data.title;
+      document.getElementById('modal-badge-desc').innerText = data.desc;
+      document.getElementById('modal-badge-status').innerText = data.status;
+      document.getElementById('badge-modal').classList.add('active');
+    }
+    function closeBadgeDialog() {
+      document.getElementById('badge-modal').classList.remove('active');
+    }
+
+    // View Switching
+    function switchView(view) {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      if (view === 'interactive') {
+        document.querySelectorAll('.nav-tab')[0].classList.add('active');
+        document.getElementById('simulator-panel').style.display = 'block';
+        document.getElementById('gallery-panel').style.display = 'block';
+      } else {
+        document.querySelectorAll('.nav-tab')[1].classList.add('active');
+        document.getElementById('gallery-panel').scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    function showScreenshot(name) {
+      document.querySelectorAll('.screen-pill').forEach(p => p.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      document.getElementById('native-shot-img').src = `screenshots/${name}.png`;
+    }
+
+    // Real-time clock in simulator
+    function updateClock() {
+      const now = new Date();
+      const hrs = now.getHours();
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById('device-clock').innerText = `${hrs}:${mins}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+  </script>
+</body>
+</html>
