@@ -3,7 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fluency Coach - App Preview & Interactive Simulator</title>
+  <title>Fluency Coach - AI English Speaking Coach | Interactive Demo & APK Download</title>
+  <meta name="description" content="Fluency Coach is an AI-driven English speaking coach app. Try the interactive demo, see native screenshots, and download the Android APK.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Fluency Coach - AI English Speaking Coach">
+  <meta property="og:description" content="Timed speaking sessions with Gemini AI fluency, pronunciation and accent feedback. Try the demo and download the app.">
+  <meta property="og:image" content="https://sunnydev07.github.io/Open-Speech/screenshots/dashboard.png">
+  <meta property="og:url" content="https://sunnydev07.github.io/Open-Speech/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙️</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -728,6 +736,64 @@
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
     }
 
+    /* Site footer: download, QR, legal */
+    .site-footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(15, 23, 42, 0.85);
+      padding: 32px 24px 40px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .footer-inner {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+      max-width: 760px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .footer-qr {
+      background: #FFFFFF;
+      padding: 10px;
+      border-radius: 14px;
+      line-height: 0;
+    }
+
+    .footer-qr img {
+      width: 140px;
+      height: 140px;
+    }
+
+    .footer-text {
+      max-width: 420px;
+    }
+
+    .footer-version {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #34D399;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 3px 10px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+    }
+
+    .footer-links a {
+      color: #93C5FD;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      margin-right: 16px;
+    }
+
+    .footer-links a:hover {
+      text-decoration: underline;
+    }
+
     /* Dialog Modal Overlay */
     .modal-overlay {
       position: absolute;
@@ -1110,6 +1176,28 @@
       </div>
     </div>
   </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-qr">
+        <img src="qr-download.png" alt="QR code to download the Fluency Coach Android app">
+      </div>
+      <div class="footer-text">
+        <div class="footer-version">v1.0 • APK 23MB • Android 8.0+</div>
+        <div style="font-size: 1rem; font-weight: 700; color: #FFFFFF; margin-bottom: 6px;">
+          Get Fluency Coach on your phone
+        </div>
+        <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 12px;">
+          Scan the QR code or use the download button above to install the app directly.
+        </div>
+        <div class="footer-links">
+          <a href="./app-debug.apk" download="FluencyCoach.apk">⬇ Download APK</a>
+          <a href="./privacy.html">Privacy Policy</a>
+          <a href="https://github.com/sunnydev07/Open-Speech">GitHub Repo</a>
+        </div>
+      </div>
+    </div>
+  </footer>
 
   <script>
     // Simulator Logic

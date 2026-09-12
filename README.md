@@ -1,5 +1,9 @@
 # Fluency Coach (Open-Speech)
 
+[![Deploy preview site](https://github.com/sunnydev07/Open-Speech/actions/workflows/pages.yml/badge.svg)](https://github.com/sunnydev07/Open-Speech/actions/workflows/pages.yml)
+[![Live site](https://img.shields.io/badge/site-live-10B981)](https://sunnydev07.github.io/Open-Speech/)
+[![Download APK](https://img.shields.io/badge/download-APK-2563EB)](https://sunnydev07.github.io/Open-Speech/app-debug.apk)
+
 An AI-driven English speaking coach app built with native Jetpack Compose and powered by Gemini AI.
 
 **Live website:** https://sunnydev07.github.io/Open-Speech/
@@ -11,7 +15,8 @@ An AI-driven English speaking coach app built with native Jetpack Compose and po
 
 - Interactive phone simulator: Dashboard, Live Recording timer, AI Analyzing, Fluency Results with pronunciation and accent feedback.
 - Native Pixel 8 Compose screenshot gallery rendered from the Kotlin source.
-- Direct APK download button in the site header.
+- Direct APK download button in the site header, plus a QR code in the footer for one-scan phone installs.
+- Privacy Policy page (required for a future Play Store listing).
 
 ## Run the app locally (Android)
 
