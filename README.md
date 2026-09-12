@@ -2,14 +2,14 @@
 
 [![Deploy preview site](https://github.com/sunnydev07/Open-Speech/actions/workflows/pages.yml/badge.svg)](https://github.com/sunnydev07/Open-Speech/actions/workflows/pages.yml)
 [![Live site](https://img.shields.io/badge/site-live-10B981)](https://sunnydev07.github.io/Open-Speech/)
-[![Download APK](https://img.shields.io/badge/download-APK-2563EB)](https://sunnydev07.github.io/Open-Speech/app-debug.apk)
+[![Download APK](https://img.shields.io/badge/download-APK-2563EB)](https://github.com/sunnydev07/Open-Speech/releases/latest)
 
 An AI-driven English speaking coach app built with native Jetpack Compose and powered by Gemini AI.
 
 **Live website:** https://sunnydev07.github.io/Open-Speech/
 
-**Download the app:** https://sunnydev07.github.io/Open-Speech/app-debug.apk
-(Android APK, ~23 MB — enable "Install unknown apps" when installing.)
+**Download the app:** https://github.com/sunnydev07/Open-Speech/releases/latest/download/app-debug.apk
+(Android APK, ~23 MB — enable "Install unknown apps" when installing. Also available on the [Releases page](https://github.com/sunnydev07/Open-Speech/releases).)
 
 ## What the site offers
 
