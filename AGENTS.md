@@ -11,7 +11,7 @@ Results show: overall score, CEFR label, WPM / pauses / fillers / accuracy, tran
 
 - Live site: `https://sunnydev07.github.io/Open-Speech/`
 - APK: GitHub Releases (`preview/app-debug.apk` is the copy deployed to Pages)
-- Package: `com.aistudio.fluencycoach.kxmlzp`, `minSdk 24`, `target/compileSdk 36`, JDK 17, Android Studio Koala+.
+- Package: `com.openspeech.app`, `minSdk 24`, `target/compileSdk 36`, JDK 17, Android Studio Koala+.
 
 ## 2. Repo layout
 
