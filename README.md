@@ -3,6 +3,7 @@
 [![Deploy preview site](https://github.com/sunnydev07/Open-Speech/actions/workflows/pages.yml/badge.svg)](https://github.com/sunnydev07/Open-Speech/actions/workflows/pages.yml)
 [![Live site](https://img.shields.io/badge/site-live-10B981)](https://sunnydev07.github.io/Open-Speech/)
 [![Download APK](https://img.shields.io/badge/download-APK-2563EB)](https://github.com/sunnydev07/Open-Speech/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 An AI-driven English speaking coach app built with native Jetpack Compose and powered by Gemini AI.
 
@@ -48,3 +49,7 @@ py -m http.server 8001
 - `.github/workflows/pages.yml` deploys the `preview/` folder to GitHub Pages on every push to `main`.
 - First-time setup (one time, in the GitHub web UI): Settings → Pages → Build and deployment → Source: **GitHub Actions**. Then run the workflow or push to `main`.
 - Repo homepage (About → website) is set to https://sunnydev07.github.io/Open-Speech/ so users can reach the site and download the app from there.
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
