@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Open Speech - AI English Speaking Coach | Interactive Demo & APK Download</title>
-  <meta name="description" content="Open Speech is an AI-driven English speaking coach app. Try the interactive demo, see native screenshots, and download the Android APK.">
+  <title>Open Speech - AI English Speaking Coach | Interactive Demo & Latest APK Download</title>
+  <meta name="description" content="Open Speech is an AI-driven English speaking coach Android app with native Jetpack Compose. Try the interactive demo, explore research-backed SLA fluency tools, and download the latest APK directly.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Open Speech - AI English Speaking Coach">
-  <meta property="og:description" content="Timed speaking sessions with Gemini AI fluency, pronunciation and accent feedback. Try the demo and download the app.">
+  <meta property="og:description" content="Timed speaking sessions with Gemini AI fluency, pronunciation and accent feedback. Download the latest Android APK directly.">
   <meta property="og:image" content="https://sunnydev07.github.io/Open-Speech/screenshots/dashboard.png">
   <meta property="og:url" content="https://sunnydev07.github.io/Open-Speech/">
   <meta name="twitter:card" content="summary_large_image">
@@ -118,13 +118,23 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(14, 165, 233, 0.15));
+      border: 1px solid rgba(52, 211, 153, 0.4);
       color: #34D399;
-      padding: 6px 14px;
+      padding: 7px 16px;
       border-radius: 20px;
-      font-size: 0.8rem;
-      font-weight: 600;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .apk-badge:hover {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(14, 165, 233, 0.25));
+      border-color: #34D399;
+      box-shadow: 0 4px 16px rgba(52, 211, 153, 0.3);
+      transform: translateY(-1px);
     }
 
     main {
@@ -828,6 +838,73 @@
       text-align: center;
       margin-bottom: 16px;
     }
+
+    /* Live pulsing dot */
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #10B981;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse-green 2s infinite;
+      display: inline-block;
+    }
+    @keyframes pulse-green {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Download Toast Notification */
+    .download-toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #0F172A;
+      border: 1px solid #34D399;
+      color: #FFFFFF;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    .download-toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* TTS Audio modeling button */
+    .tts-pill {
+      background: #F1F5F9;
+      border: 1px solid #CBD5E1;
+      color: #334155;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.15s;
+    }
+    .tts-pill:hover {
+      background: #E2E8F0;
+      border-color: #94A3B8;
+      transform: scale(1.03);
+    }
+    .tts-pill:active {
+      transform: scale(0.97);
+    }
   </style>
 </head>
 <body>
@@ -846,9 +923,10 @@
       <button class="nav-tab" onclick="switchView('gallery')">📸 Native Pixel 8 Renders</button>
     </div>
 
-    <a href="https://github.com/sunnydev07/Open-Speech/releases/latest/download/app-debug.apk" download="OpenSpeech.apk" style="text-decoration: none;" title="Download the Android app directly from this site">
+    <a href="./app-debug.apk" download="OpenSpeech.apk" onclick="downloadLatestApk(this)" style="text-decoration: none;" title="Download the latest Android app directly">
       <div class="apk-badge">
-        <span>⚡ APK Ready (23MB)</span>
+        <span class="live-dot"></span>
+        <span>⚡ Download Latest APK (v1.1 • 23.4MB)</span>
       </div>
     </a>
   </header>
@@ -1045,6 +1123,76 @@
               <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">Level: B2 Upper Intermediate</div>
             </div>
 
+            <!-- Audio Playback Card (Schmidt 1990 Noticing Hypothesis) -->
+            <div class="card" style="background: linear-gradient(135deg, #1E293B, #0F172A); border: 1px solid #334155; color: white;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: #38BDF8; display: flex; align-items: center; gap: 5px;">
+                  <span>🔊</span> LISTEN TO RECORDING
+                </div>
+                <span style="font-size: 0.7rem; color: #94A3B8;" id="playback-time-disp">0:00 / 0:42</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="sim-play-btn" onclick="toggleSimPlayback()" style="width: 34px; height: 34px; border-radius: 50%; border: none; background: #0284C7; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem;" title="Play/Pause recording">▶</button>
+                <div style="flex: 1; height: 6px; background: #334155; border-radius: 3px; position: relative; cursor: pointer;" onclick="seekSimPlayback(event)" title="Click to seek">
+                  <div id="sim-play-progress" style="width: 0%; height: 100%; background: #38BDF8; border-radius: 3px; transition: width 0.1s linear;"></div>
+                </div>
+                <button id="sim-speed-btn" onclick="toggleSimSpeed()" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #E2E8F0; padding: 3px 8px; border-radius: 12px; font-size: 0.7rem; cursor: pointer;" title="Toggle playback speed">1.0x</button>
+              </div>
+              <div style="font-size: 0.68rem; color: #94A3B8; margin-top: 6px;">
+                🎧 Play back your recording to notice intonation, rhythm, and pauses.
+              </div>
+            </div>
+
+            <!-- Metacognitive Calibration Card (Dörnyei 2005) -->
+            <div class="card" style="background: linear-gradient(135deg, #FAF5FF, #F3E8FF); border: 1px solid #E9D5FF;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 0.75rem; font-weight: 700; color: #7E22CE;">🧠 METACOGNITIVE CALIBRATION</span>
+                <span style="font-size: 0.68rem; font-weight: 700; color: #7E22CE; background: #EDE9FE; padding: 2px 8px; border-radius: 10px;">Accurate Judge</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center; margin: 8px 0; background: white; padding: 8px; border-radius: 8px; border: 1px solid #F3E8FF;">
+                <div>
+                  <div style="font-size: 0.62rem; color: var(--text-secondary);">ESTIMATE</div>
+                  <div style="font-weight: 800; font-size: 1rem; color: #7E22CE;">80</div>
+                </div>
+                <div>
+                  <div style="font-size: 0.62rem; color: var(--text-secondary);">AI SCORE</div>
+                  <div style="font-weight: 800; font-size: 1rem; color: var(--primary);">86</div>
+                </div>
+                <div>
+                  <div style="font-size: 0.62rem; color: var(--text-secondary);">CALIBRATION</div>
+                  <div style="font-weight: 800; font-size: 1rem; color: #059669;">+6 pts</div>
+                </div>
+              </div>
+              <div style="font-size: 0.72rem; color: #6B21A8; line-height: 1.35;">
+                💡 You estimated conservatively! Your actual articulation and flow were stronger than you felt.
+              </div>
+            </div>
+
+            <!-- Re-Attempt Progress Card (Zhang 2023 Task Repetition) -->
+            <div class="card" style="background: linear-gradient(135deg, #ECFDF5, #D1FAE5); border: 1px solid #A7F3D0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 0.75rem; font-weight: 700; color: #047857;">🔁 RE-ATTEMPT PROGRESS</span>
+                <span style="font-size: 0.68rem; font-weight: 700; color: #047857; background: #A7F3D0; padding: 2px 8px; border-radius: 10px;">Attempt 2 of 2</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center; margin: 8px 0; background: white; padding: 8px; border-radius: 8px; border: 1px solid #D1FAE5;">
+                <div>
+                  <div style="font-size: 0.62rem; color: var(--text-secondary);">SCORE</div>
+                  <div style="font-weight: 800; font-size: 0.95rem; color: #059669;">+6 pts ▲</div>
+                </div>
+                <div>
+                  <div style="font-size: 0.62rem; color: var(--text-secondary);">PACING</div>
+                  <div style="font-weight: 800; font-size: 0.95rem; color: #059669;">+14 WPM ▲</div>
+                </div>
+                <div>
+                  <div style="font-size: 0.62rem; color: var(--text-secondary);">PAUSES</div>
+                  <div style="font-weight: 800; font-size: 0.95rem; color: #059669;">-2 ▼</div>
+                </div>
+              </div>
+              <div style="font-size: 0.72rem; color: #065F46; line-height: 1.35;">
+                🎉 Repeating this drill significantly reduced pauses and improved your speaking rhythm!
+              </div>
+            </div>
+
             <!-- Pronunciation & Accent Card -->
             <div class="pronunciation-card">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -1055,11 +1203,23 @@
                 <strong>Detected Profile:</strong> General American cadence with crisp consonant articulation.
               </div>
               <div class="phonetic-tip">
-                <span class="phonetic-word">consequently</span> <span style="color: var(--text-secondary);">/ˈkɒn.sɪ.kwənt.li/</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <div><span class="phonetic-word">consequently</span> <span style="color: var(--text-secondary);">/ˈkɒn.sɪ.kwənt.li/</span></div>
+                  <div style="display: flex; gap: 4px;">
+                    <button class="tts-pill" onclick="speakWord('consequently', 1.0)" title="Hear 1.0x native model">🔊 1.0x</button>
+                    <button class="tts-pill" onclick="speakWord('consequently', 0.7)" title="Hear 0.7x slow model">🐢 0.7x</button>
+                  </div>
+                </div>
                 <div style="color: var(--text-secondary); margin-top: 2px;">💡 Stress initial syllable <strong>'CON-'</strong>, keeping '-se-quent-ly' light.</div>
               </div>
               <div class="phonetic-tip">
-                <span class="phonetic-word">bottleneck</span> <span style="color: var(--text-secondary);">/ˈbɒt.əl.nek/</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <div><span class="phonetic-word">bottleneck</span> <span style="color: var(--text-secondary);">/ˈbɒt.əl.nek/</span></div>
+                  <div style="display: flex; gap: 4px;">
+                    <button class="tts-pill" onclick="speakWord('bottleneck', 1.0)" title="Hear 1.0x native model">🔊 1.0x</button>
+                    <button class="tts-pill" onclick="speakWord('bottleneck', 0.7)" title="Hear 0.7x slow model">🐢 0.7x</button>
+                  </div>
+                </div>
                 <div style="color: var(--text-secondary); margin-top: 2px;">💡 Articulate a crisp flap 't' for standard American clarity.</div>
               </div>
             </div>
@@ -1111,7 +1271,9 @@
             </div>
 
             <!-- Actions -->
-            <button class="btn-action primary" onclick="startSession()">🔄 Practice Again</button>
+            <button class="btn-action primary" onclick="retryCurrentPrompt()">🔁 Retry This Prompt</button>
+            <button class="btn-action secondary" onclick="startSession()">🔄 Practice Again (New Drill)</button>
+            <button class="btn-action secondary" onclick="shareWebResult()">📤 Share Result Report</button>
             <button class="btn-action secondary" onclick="backToHome()">🏠 Back to Home</button>
           </div>
         </div>
@@ -1183,15 +1345,15 @@
         <img src="qr-download.png" alt="QR code to download the Open Speech Android app">
       </div>
       <div class="footer-text">
-        <div class="footer-version">v1.0 • APK 23MB • Android 8.0+</div>
+        <div class="footer-version">v1.1 • APK 23.4MB • Android 8.0+ • Jetpack Compose</div>
         <div style="font-size: 1rem; font-weight: 700; color: #FFFFFF; margin-bottom: 6px;">
           Get Open Speech on your phone
         </div>
         <div style="font-size: 0.85rem; color: #94A3B8; margin-bottom: 12px;">
-          Scan the QR code or use the download button above to install the app directly.
+          Scan the QR code or click below to download and install the latest APK build directly.
         </div>
         <div class="footer-links">
-          <a href="https://github.com/sunnydev07/Open-Speech/releases/latest/download/app-debug.apk" download="OpenSpeech.apk">⬇ Download APK</a>
+          <a href="./app-debug.apk" download="OpenSpeech.apk" onclick="downloadLatestApk(this)" style="color: #34D399; font-weight: 700;">⬇ Download Latest APK (v1.1)</a>
           <a href="./privacy.html">Privacy Policy</a>
           <a href="https://github.com/sunnydev07/Open-Speech">GitHub Repo</a>
         </div>
@@ -1364,6 +1526,159 @@
     }
     setInterval(updateClock, 1000);
     updateClock();
+
+    // ==========================================
+    // Direct APK Download & Cache-Buster Handler
+    // ==========================================
+    function downloadLatestApk(anchor) {
+      // Append cache buster timestamp to ensure browser fetches the latest uploaded APK build
+      const timestamp = Date.now();
+      anchor.href = `./app-debug.apk?t=${timestamp}`;
+      showDownloadToast("⚡ Starting download of Open Speech APK (v1.1 • 23.4MB)...");
+    }
+
+    function showDownloadToast(msg) {
+      let toast = document.getElementById('dl-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'dl-toast';
+        toast.className = 'download-toast';
+        document.body.appendChild(toast);
+      }
+      toast.innerHTML = `<span>📥</span> <span>${msg}</span>`;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 4500);
+    }
+
+    // ==========================================
+    // Native TTS Acoustic Modeling (Web Speech API)
+    // ==========================================
+    function speakWord(word, rate) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(word);
+        utterance.rate = rate;
+        utterance.lang = 'en-US';
+        window.speechSynthesis.speak(utterance);
+        showDownloadToast(`🔊 Playing native model for "${word}" at ${rate}x`);
+      } else {
+        showDownloadToast(`🔊 Native model pronunciation: "${word}" (${rate}x)`);
+      }
+    }
+
+    // ==========================================
+    // Audio Playback Engine (Schmidt's Noticing Hypothesis)
+    // ==========================================
+    let simAudioPlaying = false;
+    let simAudioProgress = 0;
+    let simAudioInterval = null;
+    let simAudioSpeed = 1.0;
+
+    function toggleSimPlayback() {
+      if (simAudioPlaying) {
+        pauseSimPlayback();
+      } else {
+        startSimPlayback();
+      }
+    }
+
+    function startSimPlayback() {
+      simAudioPlaying = true;
+      const btn = document.getElementById('sim-play-btn');
+      if (btn) btn.innerText = '⏸';
+      
+      if (simAudioInterval) clearInterval(simAudioInterval);
+      simAudioInterval = setInterval(() => {
+        simAudioProgress += (1 * simAudioSpeed);
+        if (simAudioProgress >= 42) {
+          simAudioProgress = 42;
+          updatePlaybackUI();
+          pauseSimPlayback();
+          simAudioProgress = 0;
+        } else {
+          updatePlaybackUI();
+        }
+      }, 1000);
+    }
+
+    function pauseSimPlayback() {
+      simAudioPlaying = false;
+      const btn = document.getElementById('sim-play-btn');
+      if (btn) btn.innerText = '▶';
+      if (simAudioInterval) {
+        clearInterval(simAudioInterval);
+        simAudioInterval = null;
+      }
+    }
+
+    function updatePlaybackUI() {
+      const bar = document.getElementById('sim-play-progress');
+      const timeDisp = document.getElementById('playback-time-disp');
+      const pct = (simAudioProgress / 42) * 100;
+      if (bar) bar.style.width = `${pct}%`;
+      const curSec = Math.floor(simAudioProgress);
+      const m = Math.floor(curSec / 60);
+      const s = curSec % 60;
+      if (timeDisp) {
+        timeDisp.innerText = `${m}:${String(s).padStart(2, '0')} / 0:42`;
+      }
+    }
+
+    function seekSimPlayback(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, clickX / rect.width));
+      simAudioProgress = pct * 42;
+      updatePlaybackUI();
+      if (!simAudioPlaying) {
+        startSimPlayback();
+      }
+    }
+
+    function toggleSimSpeed() {
+      simAudioSpeed = simAudioSpeed === 1.0 ? 0.8 : 1.0;
+      const btn = document.getElementById('sim-speed-btn');
+      if (btn) btn.innerText = `${simAudioSpeed.toFixed(1)}x`;
+      showDownloadToast(`🎧 Playback speed set to ${simAudioSpeed.toFixed(1)}x`);
+    }
+
+    // ==========================================
+    // Task Repetition & Delta Comparison (Zhang 2023)
+    // ==========================================
+    function retryCurrentPrompt() {
+      showDownloadToast("🔁 Starting Attempt 2 with task repetition delta tracking!");
+      startSession();
+    }
+
+    // ==========================================
+    // Progress Report Sharing (Dörnyei 2001)
+    // ==========================================
+    function shareWebResult() {
+      const shareText = "Open Speech - AI Speaking Coach Fluency Report\n" +
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+        "🏆 Fluency Rating: 86/100 (Level: B2 Upper Intermediate)\n" +
+        "⚡ Speech Rate: 132 WPM (Target 120-150)\n" +
+        "⏸️ Pauses (>1s): 2 | Filler Words: 1 | Accuracy: 94%\n" +
+        "🗣️ Articulation: 88% (General American cadence)\n" +
+        "🔁 Task Repetition: +6 pts score improvement on second drill!\n\n" +
+        "Practice your English fluency with Open Speech: https://sunnydev07.github.io/Open-Speech/";
+      
+      if (navigator.share) {
+        navigator.share({
+          title: 'Open Speech Fluency Report',
+          text: shareText,
+          url: 'https://sunnydev07.github.io/Open-Speech/'
+        }).catch(() => {});
+      } else if (navigator.clipboard) {
+        navigator.clipboard.writeText(shareText).then(() => {
+          showDownloadToast("📋 Fluency report copied to clipboard!");
+        });
+      } else {
+        showDownloadToast("📋 Fluency report ready to share!");
+      }
+    }
   </script>
 </body>
 </html>
