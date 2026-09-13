@@ -2,6 +2,7 @@ package com.example.ai
 
 import android.util.Base64
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import com.example.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,6 +22,17 @@ data class PhoneticTip(
     val tip: String
 )
 
+/**
+ * Feature 19 ("Say it again" re-drill loop, Lyster & Saito 2010): one spoken
+ * grammar/word-choice error as an eliciting prompt — the learner's own sentence,
+ * the minimal correction, and the one-line rule behind it.
+ */
+data class SentenceCorrection(
+    val ownSentence: String,
+    val correctedSentence: String,
+    val rule: String
+)
+
 data class PronunciationAccentFeedback(
     val transcription: String,
     val pronunciationScore: Int,
@@ -36,7 +48,8 @@ data class PronunciationAccentFeedback(
     val recommendations: List<String>,
     val isRealAiGenerated: Boolean = true,
     val cefr: String? = null,
-    val cefrJustification: String = ""
+    val cefrJustification: String = "",
+    val sentenceCorrections: List<SentenceCorrection> = emptyList()
 )
 
 /** Thrown when a real (API-key) analysis fails: network, HTTP error, or bad payload (F8). */
@@ -93,6 +106,12 @@ class GeminiPronunciationService {
                 You are an expert American & International English pronunciation and accent coach.
                 Analyze the user's speech audio input for this practice drill prompt: "$referencePrompt".
                 Provide clear, supportive, and highly actionable diagnostic feedback.
+
+                For "sentenceCorrections", pick the 2-4 most important spoken grammar or word-choice
+                errors actually present in the transcription. Each "ownSentence" must be an exact
+                sentence the learner said; "correctedSentence" is the minimal correction of that
+                sentence; "rule" is a one-line grammar/usage rule (max 15 words). If the speech has
+                no clear errors, return an empty array.
                 
                 You must return your output strictly in JSON with the following structure:
                 {
@@ -122,6 +141,13 @@ class GeminiPronunciationService {
                   "accuracy": 95, // grammatical accuracy percentage
                   "cefr": "B2 Upper Intermediate", // one of: A2 Elementary, B1 Intermediate, B2 Upper Intermediate, C1 Advanced
                   "cefrJustification": "One sentence justifying the CEFR level from score, accuracy, and pacing",
+                  "sentenceCorrections": [
+                    {
+                      "ownSentence": "I have been working here since three years.",
+                      "correctedSentence": "I have been working here for three years.",
+                      "rule": "Use 'for' (not 'since') with a length of time."
+                    }
+                  ],
                   "recommendations": [
                     "Practice linking vowel-to-vowel transitions smoothly.",
                     "Slow down slightly on polysyllabic terminology for crisper articulation."
@@ -198,7 +224,8 @@ class GeminiPronunciationService {
         return apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY"
     }
 
-    private fun parseFeedbackJson(
+    @VisibleForTesting
+    internal fun parseFeedbackJson(
         jsonString: String,
         elapsedSeconds: Int,
         isRealAi: Boolean
@@ -265,6 +292,27 @@ class GeminiPronunciationService {
             val cefr = obj.optString("cefr", "").ifBlank { null }
             val cefrJustification = obj.optString("cefrJustification", "")
 
+            // Feature 19: sentence corrections for the "Say it again" re-drill loop.
+            // Tolerate older/missing payloads — an empty list simply hides the section.
+            val correctionsList = mutableListOf<SentenceCorrection>()
+            val correctionsArray = obj.optJSONArray("sentenceCorrections")
+            if (correctionsArray != null) {
+                for (i in 0 until correctionsArray.length()) {
+                    val correctionObj = correctionsArray.optJSONObject(i) ?: continue
+                    val own = correctionObj.optString("ownSentence", "").trim()
+                    val fixed = correctionObj.optString("correctedSentence", "").trim()
+                    if (own.isNotEmpty() && fixed.isNotEmpty()) {
+                        correctionsList.add(
+                            SentenceCorrection(
+                                ownSentence = own,
+                                correctedSentence = fixed,
+                                rule = correctionObj.optString("rule", "").trim()
+                            )
+                        )
+                    }
+                }
+            }
+
             PronunciationAccentFeedback(
                 transcription = transcription,
                 pronunciationScore = pronunciationScore,
@@ -280,7 +328,8 @@ class GeminiPronunciationService {
                 recommendations = recList,
                 isRealAiGenerated = isRealAi,
                 cefr = cefr,
-                cefrJustification = cefrJustification
+                cefrJustification = cefrJustification,
+                sentenceCorrections = correctionsList.take(4)
             )
         } catch (e: Exception) {
             Log.e("GeminiAI", "Failed to parse Gemini feedback JSON", e)

@@ -57,7 +57,7 @@ P0 teaches → P1 adds real skills → P2 retention → P3 trust/platform. Don't
 - [ ] Part 1/2/3 timed flows + 4-criterion rubric (fluency/coherence, lexical, grammar, pronunciation) instead of single 0–100.
 
 #### P1.3 Grammar-in-speech corrections
-- [ ] Show own sentence → corrected diff + 1-line rule + "say it again" retry. Replaces generic `recommendations` strings.
+- [x] Show own sentence → corrected diff + 1-line rule + "say it again" retry. Replaces generic `recommendations` strings. (Done: Feature 19 — `RedrillCard.kt` + `WordDiff.kt` + redrill-linked sessions, DB v3.)
 
 #### P1.4 Filler / pause coach
 - [ ] Detect um/uh/like + pause map on transcript timeline; per-session filler goal + optional haptic nudge while recording.

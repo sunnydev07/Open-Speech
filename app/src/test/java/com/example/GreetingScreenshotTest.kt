@@ -2,6 +2,11 @@ package com.example
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.example.ui.theme.OpenSpeechTheme
@@ -76,6 +81,56 @@ class GreetingScreenshotTest {
       }
     }
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/result.png")
+  }
+
+  @Test
+  fun redrill_screenshot() {
+    val corrections = listOf(
+      com.example.ai.SentenceCorrection(
+        ownSentence = "I have been working here since three years.",
+        correctedSentence = "I have been working here for three years.",
+        rule = "Use 'for' (not 'since') with a length of time."
+      ),
+      com.example.ai.SentenceCorrection(
+        ownSentence = "He go to school every day.",
+        correctedSentence = "He goes to school every day.",
+        rule = "Third-person singular takes -s."
+      )
+    )
+    composeTestRule.setContent {
+      OpenSpeechTheme {
+        androidx.compose.foundation.layout.Column(
+          modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+        ) {
+          com.example.ui.components.RedrillResultBanner(
+            attemptNumber = 1,
+            baselineScore = 78,
+            currentScore = 84,
+            baselineAccuracy = 88,
+            currentAccuracy = 94,
+            baselineWpm = 118,
+            currentWpm = 126
+          )
+          androidx.compose.foundation.layout.Spacer(
+            modifier = Modifier.height(12.dp)
+          )
+          corrections.forEachIndexed { index, correction ->
+            com.example.ui.components.SentenceCorrectionCard(
+              correction = correction,
+              index = index,
+              attemptCount = if (index == 0) 1 else 0,
+              onPractice = {}
+            )
+            androidx.compose.foundation.layout.Spacer(
+              modifier = Modifier.height(10.dp)
+            )
+          }
+        }
+      }
+    }
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/redrill.png")
   }
 
   @Test

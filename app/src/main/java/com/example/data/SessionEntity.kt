@@ -9,6 +9,11 @@ import androidx.room.Query
 /**
  * One completed speaking session (F2). Demo-mode sessions (no API key) are kept
  * for goal/streak tracking but flagged so score averages ignore them.
+ *
+ * Feature 19 ("Say it again" re-drill loop): a re-drill is a short follow-up
+ * session linked to the session it corrects via [parentSessionId]; [drillIndex]
+ * is the position of the drilled [com.example.ai.SentenceCorrection] in the
+ * parent result (-1 for full sessions).
  */
 @Entity(tableName = "sessions")
 data class SessionEntity(
@@ -27,7 +32,10 @@ data class SessionEntity(
     val audioPath: String? = null,
     val selfFluency: Int? = null,
     val selfPronunciation: Int? = null,
-    val selfConfidence: Int? = null
+    val selfConfidence: Int? = null,
+    val parentSessionId: Long? = null,
+    val isRedrill: Boolean = false,
+    val drillIndex: Int = -1
 )
 
 @Dao
@@ -70,4 +78,10 @@ interface SessionDao {
 
     @Query("SELECT * FROM sessions ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentSessions(limit: Int): List<SessionEntity>
+
+    @Query("SELECT COUNT(*) FROM sessions WHERE parentSessionId = :parentId")
+    suspend fun countRedrills(parentId: Long): Int
+
+    @Query("SELECT * FROM sessions WHERE parentSessionId = :parentId ORDER BY timestamp DESC")
+    suspend fun getRedrills(parentId: Long): List<SessionEntity>
 }

@@ -99,7 +99,7 @@ Ordered by fluency-impact per effort. Pick top-down.
 ### P1 — Real speaking skills (fluency ≠ good audio)
 - [ ] **Conversation mode (turn-taking).** Gemini Live / streaming audio: AI asks follow-up, user answers, interruption handling. Monologue drills alone don't build interactional fluency.
 - [ ] **IELTS/TOEFL Part 1/2/3 tracks.** Timed parts, band-descriptor rubric (fluency/coherence, lexical resource, grammar range, pronunciation) instead of one 0–100 number.
-- [ ] **Grammar-in-speech corrections.** Show *own sentence → corrected sentence* diff + 1-line rule + "say it again" retry. Current `recommendations` are generic strings.
+- [x] **Grammar-in-speech corrections.** Show *own sentence → corrected sentence* diff + 1-line rule + "say it again" retry (Feature 19 re-drill loop: `RedrillCard.kt`, `WordDiff.kt`, `SessionEntity.parentSessionId/isRedrill/drillIndex`, DB v3). Current `recommendations` are generic strings.
 - [ ] **Filler/pause coach.** Detect um/uh/like + pause map on transcript timeline; per-session "filler count" goal with haptic nudge in practice.
 - [ ] **Vocabulary upgrade suggestions.** For each transcript, propose 3 CEFR+1 swaps (e.g. "good → compelling") with example sentence + say-it drill.
 - [x] **Task repetition with comparison.** Retry the same prompt with side-by-side delta tracking (Zhang 2023).

@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -48,6 +49,7 @@ import com.example.ai.GeminiPronunciationService
 import com.example.ai.PhoneticTip
 import com.example.ai.PracticePrompt
 import com.example.ai.PromptLibrary
+import com.example.ai.SentenceCorrection
 import com.example.audio.AudioRecorderManager
 import com.example.data.OpenSpeechDatabase
 import com.example.data.SessionEntity
@@ -122,7 +124,8 @@ data class SpeechMetrics(
             tip = "Elongate the /aɪ/ diphthong in 'PRY' before transitioning."
         )
     ),
-    val isRealAiGenerated: Boolean = true
+    val isRealAiGenerated: Boolean = true,
+    val sentenceCorrections: List<SentenceCorrection> = emptyList()
 )
 
 data class SelfAssessmentData(
@@ -186,6 +189,20 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _showSelfAssessmentDialog = MutableStateFlow(false)
     val showSelfAssessmentDialog: StateFlow<Boolean> = _showSelfAssessmentDialog.asStateFlow()
+
+    // Feature 19: "Say it again" re-drill loop (Lyster & Saito 2010) — a focused
+    // 30s re-record of one sentence correction, linked to its parent session.
+    private val _redrillTarget = MutableStateFlow<RedrillTarget?>(null)
+    val redrillTarget: StateFlow<RedrillTarget?> = _redrillTarget.asStateFlow()
+
+    private val _redrillBaseline = MutableStateFlow<SpeechMetrics?>(null)
+    val redrillBaseline: StateFlow<SpeechMetrics?> = _redrillBaseline.asStateFlow()
+
+    private val _redrillAttempt = MutableStateFlow(0)
+    val redrillAttempt: StateFlow<Int> = _redrillAttempt.asStateFlow()
+
+    private val _redrillCounts = MutableStateFlow<Map<Int, Int>>(emptyMap())
+    val redrillCounts: StateFlow<Map<Int, Int>> = _redrillCounts.asStateFlow()
 
     private var lastInsertedSessionId: Long? = null
 
@@ -305,6 +322,7 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
     fun requestNewPrompt() {
         _previousAttempt.value = null
         _currentSelfAssessment.value = null
+        clearRedrillState()
         recentPromptIds.addLast(_currentPrompt.value.id)
         while (recentPromptIds.size > 5) recentPromptIds.removeFirst()
         _currentPrompt.value = PromptLibrary.next(recentPromptIds.toSet(), _userLevel.value)
@@ -328,20 +346,83 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
     /** Feature 11: Retries the exact same prompt to practice task repetition. */
     fun retryCurrentPrompt(context: Context? = null) {
         _currentSelfAssessment.value = null
+        clearRedrillState()
         startRecording(context)
+    }
+
+    /**
+     * Feature 19: starts a focused 30-second re-drill of one sentence correction
+     * from the current result. The parent result is kept as the delta baseline and
+     * the completed drill links back to its parent session in Room.
+     */
+    fun startRedrill(index: Int, context: Context? = null) {
+        val corrections = _metrics.value.sentenceCorrections
+        if (index !in corrections.indices) return
+        // F1: never start a new session while analysis is in flight.
+        if (_appState.value == AppState.Analyzing) return
+        analysisJob?.cancel()
+        val correction = corrections[index]
+        _redrillBaseline.value = _metrics.value
+        _redrillTarget.value = RedrillTarget(
+            index = index,
+            ownSentence = correction.ownSentence,
+            correctedSentence = correction.correctedSentence,
+            rule = correction.rule
+        )
+        _previousAttempt.value = null
+        _currentSelfAssessment.value = null
+        _showSelfAssessmentDialog.value = false
+        _analysisUiState.value = AnalysisUiState.Idle
+        _selectedPreset.value = TimerPreset.THIRTY_SEC
+        _totalTargetSeconds.value = TimerPreset.THIRTY_SEC.durationSeconds
+        _elapsedSeconds.value = 0
+        _isPaused.value = false
+        _appState.value = AppState.Recording
+        beginCapture(context)
+    }
+
+    /** Test-only: seeds result metrics so flows can be exercised without Gemini. */
+    @VisibleForTesting
+    fun setMetricsForTest(metrics: SpeechMetrics) {
+        _metrics.value = metrics
+    }
+
+    /** Feature 19: abandons the active re-drill and returns to the parent result. */
+    fun cancelRedrill() {
+        _redrillTarget.value = null
+        audioRecorderManager?.stopRecording()
+        amplitudeCollectJob?.cancel()
+        amplitudeCollectJob = null
+        _audioAmplitude.value = 0f
+        if (_appState.value == AppState.Recording) {
+            _appState.value = AppState.Result
+        }
+    }
+
+    /** Feature 19: clears re-drill state when leaving the drill chain. */
+    private fun clearRedrillState() {
+        _redrillTarget.value = null
+        _redrillBaseline.value = null
+        _redrillAttempt.value = 0
+        _redrillCounts.value = emptyMap()
     }
 
     fun startRecording(context: Context? = null) {
         // F1: never start a new session while analysis is in flight.
         if (_appState.value == AppState.Analyzing) return
         analysisJob?.cancel()
+        clearRedrillState()
         _showSelfAssessmentDialog.value = false
         _analysisUiState.value = AnalysisUiState.Idle
         _totalTargetSeconds.value = _selectedPreset.value.durationSeconds
         _elapsedSeconds.value = 0
         _isPaused.value = false
         _appState.value = AppState.Recording
+        beginCapture(context)
+    }
 
+    /** Starts mic capture + amplitude polling; shared by full sessions and re-drills. */
+    private fun beginCapture(context: Context?) {
         if (context != null) {
             val manager = audioRecorderManager ?: AudioRecorderManager(context.applicationContext, viewModelScope).also {
                 audioRecorderManager = it
@@ -467,12 +548,18 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
                     pronunciationFeedback = feedbackResult.pronunciationFeedback,
                     accentFeedback = feedbackResult.accentFeedback,
                     phoneticTips = feedbackResult.phoneticTips,
-                    isRealAiGenerated = feedbackResult.isRealAiGenerated
+                    isRealAiGenerated = feedbackResult.isRealAiGenerated,
+                    sentenceCorrections = feedbackResult.sentenceCorrections
                 )
 
                 // Feature 11: Fetch previous attempt for this prompt before inserting current one
                 val prev = sessionDao.getPreviousSessionForPrompt(prompt.id)
                 _previousAttempt.value = prev
+
+                // Feature 19: link a completed re-drill to its parent session.
+                val redrill = _redrillTarget.value
+                val parentId = if (redrill != null) lastInsertedSessionId else null
+                val priorRedrills = if (parentId != null) sessionDao.countRedrills(parentId) else 0
 
                 // F2: persist the session, then recompute all progress from the DB.
                 val insertedId = sessionDao.insert(
@@ -488,10 +575,20 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
                         cefr = cefrLabel,
                         promptId = prompt.id,
                         isDemo = !feedbackResult.isRealAiGenerated,
-                        audioPath = recordedAudioFile?.absolutePath
+                        audioPath = recordedAudioFile?.absolutePath,
+                        parentSessionId = parentId,
+                        isRedrill = redrill != null,
+                        drillIndex = redrill?.index ?: -1
                     )
                 )
                 lastInsertedSessionId = insertedId
+                if (redrill != null) {
+                    _redrillAttempt.value = priorRedrills + 1
+                    _redrillCounts.value = _redrillCounts.value +
+                        (redrill.index to ((_redrillCounts.value[redrill.index] ?: 0) + 1))
+                    // Target consumed; the baseline stays so the banner can show deltas.
+                    _redrillTarget.value = null
+                }
                 refreshProgress()
 
                 _analysisUiState.value = AnalysisUiState.Idle
@@ -513,6 +610,7 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun backToDashboard() {
+        clearRedrillState()
         _appState.value = AppState.Dashboard
     }
 
@@ -702,12 +800,14 @@ fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = vi
                 isPaused = viewModel.isPaused.collectAsState().value,
                 amplitude = audioAmplitude,
                 hasRecordPermission = hasAudioPermission,
+                redrillTarget = viewModel.redrillTarget.collectAsState().value,
                 onRequestPermission = {
                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 },
                 onTogglePause = { viewModel.togglePause() },
                 onAddSeconds = { viewModel.addSeconds(it) },
                 onTick = { viewModel.tickTimer() },
+                onCancelRedrill = { viewModel.cancelRedrill() },
                 onStop = { viewModel.stopRecording() }
             )
             AppState.Analyzing -> AnalyzingScreen(
@@ -722,10 +822,20 @@ fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = vi
                 audioFile = viewModel.recordedAudioFile,
                 previousAttempt = previousAttempt,
                 selfAssessment = currentSelfAssessment,
+                redrillBaseline = viewModel.redrillBaseline.collectAsState().value,
+                redrillAttempt = viewModel.redrillAttempt.collectAsState().value,
+                redrillCounts = viewModel.redrillCounts.collectAsState().value,
                 onBadgeClick = { viewModel.selectBadge(it) },
                 onRetryPrompt = {
                     if (hasAudioPermission) {
                         viewModel.retryCurrentPrompt(context)
+                    } else {
+                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                onStartRedrill = { index ->
+                    if (hasAudioPermission) {
+                        viewModel.startRedrill(index, context)
                     } else {
                         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
@@ -1115,10 +1225,12 @@ fun RecordingScreen(
     isPaused: Boolean,
     amplitude: Float = 0f,
     hasRecordPermission: Boolean = true,
+    redrillTarget: RedrillTarget? = null,
     onRequestPermission: () -> Unit = {},
     onTogglePause: () -> Unit,
     onAddSeconds: (Int) -> Unit,
     onTick: () -> Unit,
+    onCancelRedrill: () -> Unit = {},
     onStop: () -> Unit
 ) {
     // F6: lifecycle-aware ticker — pauses stop the loop, leaving the screen cancels it.
@@ -1153,6 +1265,52 @@ fun RecordingScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(16.dp)
             )
+        }
+
+        // Feature 19: re-drill target banner — the one corrected sentence to say.
+        if (redrillTarget != null) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("redrill_target_banner"),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = SuccessGreen.copy(alpha = 0.10f)
+                ),
+                border = BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Say it again — fix #${redrillTarget.index + 1}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = SuccessGreen
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "\"${redrillTarget.correctedSentence}\"",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "instead of: \"${redrillTarget.ownSentence}\"",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                    TextButton(
+                        onClick = onCancelRedrill,
+                        modifier = Modifier.testTag("cancel_redrill_button")
+                    ) {
+                        Text("Cancel drill", color = TextSecondary)
+                    }
+                }
+            }
         }
 
         // Microphone access notice if not granted
@@ -1296,8 +1454,12 @@ fun ResultScreen(
     audioFile: File? = null,
     previousAttempt: SessionEntity? = null,
     selfAssessment: SelfAssessmentData? = null,
+    redrillBaseline: SpeechMetrics? = null,
+    redrillAttempt: Int = 0,
+    redrillCounts: Map<Int, Int> = emptyMap(),
     onBadgeClick: (MilestoneBadge) -> Unit = {},
     onRetryPrompt: () -> Unit = {},
+    onStartRedrill: (Int) -> Unit = {},
     onPracticeAgain: () -> Unit,
     onShare: () -> Unit = {},
     onBack: () -> Unit
@@ -1631,6 +1793,54 @@ fun ResultScreen(
             }
 
             Spacer(modifier = Modifier.height(14.dp))
+
+            // Feature 19: re-drill result banner — deltas vs the parent attempt.
+            if (redrillBaseline != null && redrillAttempt > 0) {
+                RedrillResultBanner(
+                    attemptNumber = redrillAttempt,
+                    baselineScore = redrillBaseline.score,
+                    currentScore = metrics.score,
+                    baselineAccuracy = redrillBaseline.accuracy,
+                    currentAccuracy = metrics.accuracy,
+                    baselineWpm = redrillBaseline.wpm,
+                    currentWpm = metrics.wpm
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            // Feature 19: "Fix & re-say" — each correction drills independently.
+            if (metrics.sentenceCorrections.isNotEmpty()) {
+                Text(
+                    text = "Fix & re-say",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Start
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "One fix at a time beats ten tips. Re-record a single sentence until it sticks.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Start
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                metrics.sentenceCorrections.forEachIndexed { correctionIndex, correction ->
+                    SentenceCorrectionCard(
+                        correction = correction,
+                        index = correctionIndex,
+                        attemptCount = redrillCounts[correctionIndex] ?: 0,
+                        onPractice = {
+                            hapticHelper.onStartSession()
+                            onStartRedrill(correctionIndex)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
 
             // Feedback & Recommendations Card
             Card(

@@ -5,8 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-/** Room database holding the session log. Version 2 includes audioPath and self-assessment metrics. */
-@Database(entities = [SessionEntity::class], version = 2, exportSchema = false)
+/** Room database holding the session log. Version 3 adds re-drill linkage (Feature 19). */
+@Database(entities = [SessionEntity::class], version = 3, exportSchema = false)
 abstract class OpenSpeechDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
 
