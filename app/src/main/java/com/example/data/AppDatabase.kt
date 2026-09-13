@@ -5,8 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-/** Room database holding the session log (F2). Version 1 — no migrations yet. */
-@Database(entities = [SessionEntity::class], version = 1, exportSchema = false)
+/** Room database holding the session log. Version 2 includes audioPath and self-assessment metrics. */
+@Database(entities = [SessionEntity::class], version = 2, exportSchema = false)
 abstract class OpenSpeechDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
 
@@ -20,7 +20,7 @@ abstract class OpenSpeechDatabase : RoomDatabase() {
                     context.applicationContext,
                     OpenSpeechDatabase::class.java,
                     "openspeech.db"
-                ).build().also { instance = it }
+                ).fallbackToDestructiveMigration(true).build().also { instance = it }
             }
     }
 }

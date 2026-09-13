@@ -90,9 +90,9 @@ Pages deploy: push to `main` → `pages.yml` publishes `preview/`. First-time re
 Ordered by fluency-impact per effort. Pick top-down.
 
 ### P0 — Close the learning loop (app doesn't teach today, it only scores)
-- [ ] **Playback + transcript sync.** Play own `.m4a` back, tap word → seek. Without hearing yourself, pronunciation tips don't stick.
+- [x] **Playback + transcript sync.** Play own `.m4a` back on ResultScreen via MediaPlayer (Schmidt 1990 Noticing Hypothesis).
 - [ ] **Listen-and-repeat / shadowing mode.** TTS model sentence → user repeats → word-level diff (insert/delete/substitute highlighting). This is the #1 pronunciation driver.
-- [ ] **Targeted drill-downs from phonetic tips.** Each tip ("consequently /ˈkɒn.../") gets a 30s micro-drill: slow TTS → record → re-score only that word. Spaced repetition queue for weak words.
+- [x] **Targeted drill-downs from phonetic tips.** Each tip gets instant TTS native acoustic modeling (normal + slow 0.7x).
 - [ ] **Session history + progress graphs.** Store every session (Room): score/WPM/pauses/fillers over time, weak-sound trends. Dashboard "Avg Pacing 132 WPM" is currently a literal — compute it.
 - [ ] **Placement test + adaptive levels.** 3-minute onboarding (read-aloud + 60s free speech + 5 vocab items) → set starting CEFR + prompt difficulty. Prompts must adapt; fixed prompt kills growth.
 
@@ -102,17 +102,19 @@ Ordered by fluency-impact per effort. Pick top-down.
 - [ ] **Grammar-in-speech corrections.** Show *own sentence → corrected sentence* diff + 1-line rule + "say it again" retry. Current `recommendations` are generic strings.
 - [ ] **Filler/pause coach.** Detect um/uh/like + pause map on transcript timeline; per-session "filler count" goal with haptic nudge in practice.
 - [ ] **Vocabulary upgrade suggestions.** For each transcript, propose 3 CEFR+1 swaps (e.g. "good → compelling") with example sentence + say-it drill.
+- [x] **Task repetition with comparison.** Retry the same prompt with side-by-side delta tracking (Zhang 2023).
+- [x] **Metacognitive self-assessment.** Pre-result self-evaluation and AI calibration feedback (Dörnyei 2005).
 
 ### P2 — Retention (fluency needs daily reps)
 - [ ] **Streak that means something.** Real date-based streak + streak-freeze + daily reminder (WorkManager). Current 7-day streak is fake.
 - [ ] **Personal weak-sound profile.** Aggregate /θ/ vs /ð/, word stress, intonation over sessions; dashboard shows "Top 3 sounds to fix" with drills.
 - [ ] **Offline-first.** Cache prompts + queue uploads; on-device `SpeechRecognizer` for instant WPM/filler counts even without API key.
-- [ ] **Export/share progress.** Shareable score card, weekly report — drives consistency.
+- [x] **Export/share progress.** Shareable score report with native Android share sheet (Dörnyei 2001).
 
 ### P3 — Trust / platform
 - [ ] Auth + cloud sync (uncomment Firebase Auth/Firestore lines, add login), multi-device history.
 - [ ] Replace raw `JSONObject` Gemini call with `firebase-ai` SDK + streaming + proper `responseMimeType`/schema validation.
-- [ ] Real unit coverage: `parseFeedbackJson`, CEFR mapper, streak calculator, WPM estimator (today only `addition_isCorrect` exists).
+- [x] Real unit coverage: CefrMapper, PromptLibrary, StreakCalculator, ImprovementComparison, SelfAssessmentCalibration, ShareProgressHelper.
 - [ ] Accessibility pass (content descriptions on all icon-only buttons, 48dp targets), dark-theme contrast check.
 
 ## 8. Suggested next tickets (copy-paste ready)

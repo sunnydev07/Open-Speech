@@ -58,6 +58,7 @@ import com.example.ui.effects.SimpleAudioVisualizer
 import com.example.ui.effects.subtleClick
 import com.example.ui.theme.*
 import com.example.util.rememberHapticHelper
+import com.example.util.ShareProgressHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -124,6 +125,12 @@ data class SpeechMetrics(
     val isRealAiGenerated: Boolean = true
 )
 
+data class SelfAssessmentData(
+    val fluency: Int,
+    val pronunciation: Int,
+    val confidence: Int
+)
+
 class SpeechViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = UserPrefs(application.applicationContext)
     private val sessionDao = OpenSpeechDatabase.get(application.applicationContext).sessionDao()
@@ -166,7 +173,21 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
     private var analysisJob: Job? = null
     private var amplitudeCollectJob: Job? = null
 
-    private var recordedAudioFile: File? = null
+    var recordedAudioFile: File? = null
+        private set
+
+    // Feature 11: Task Repetition (Zhang 2023) — Previous attempt for the same prompt
+    private val _previousAttempt = MutableStateFlow<SessionEntity?>(null)
+    val previousAttempt: StateFlow<SessionEntity?> = _previousAttempt.asStateFlow()
+
+    // Feature 12: Metacognitive Self-Assessment (Dörnyei 2005)
+    private val _currentSelfAssessment = MutableStateFlow<SelfAssessmentData?>(null)
+    val currentSelfAssessment: StateFlow<SelfAssessmentData?> = _currentSelfAssessment.asStateFlow()
+
+    private val _showSelfAssessmentDialog = MutableStateFlow(false)
+    val showSelfAssessmentDialog: StateFlow<Boolean> = _showSelfAssessmentDialog.asStateFlow()
+
+    private var lastInsertedSessionId: Long? = null
 
     private val _todayPracticedMinutes = MutableStateFlow(0)
     val todayPracticedMinutes: StateFlow<Int> = _todayPracticedMinutes.asStateFlow()
@@ -282,15 +303,39 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
 
     /** F9: rotates to the next prompt for the user's level, avoiding recent repeats. */
     fun requestNewPrompt() {
+        _previousAttempt.value = null
+        _currentSelfAssessment.value = null
         recentPromptIds.addLast(_currentPrompt.value.id)
         while (recentPromptIds.size > 5) recentPromptIds.removeFirst()
         _currentPrompt.value = PromptLibrary.next(recentPromptIds.toSet(), _userLevel.value)
+    }
+
+    /** Feature 12: Saves user's self-ratings and attaches them to the session. */
+    fun submitSelfAssessment(fluency: Int, pronunciation: Int, confidence: Int) {
+        _currentSelfAssessment.value = SelfAssessmentData(fluency, pronunciation, confidence)
+        _showSelfAssessmentDialog.value = false
+        lastInsertedSessionId?.let { id ->
+            viewModelScope.launch {
+                sessionDao.updateSelfAssessment(id, fluency, pronunciation, confidence)
+            }
+        }
+    }
+
+    fun dismissSelfAssessment() {
+        _showSelfAssessmentDialog.value = false
+    }
+
+    /** Feature 11: Retries the exact same prompt to practice task repetition. */
+    fun retryCurrentPrompt(context: Context? = null) {
+        _currentSelfAssessment.value = null
+        startRecording(context)
     }
 
     fun startRecording(context: Context? = null) {
         // F1: never start a new session while analysis is in flight.
         if (_appState.value == AppState.Analyzing) return
         analysisJob?.cancel()
+        _showSelfAssessmentDialog.value = false
         _analysisUiState.value = AnalysisUiState.Idle
         _totalTargetSeconds.value = _selectedPreset.value.durationSeconds
         _elapsedSeconds.value = 0
@@ -425,8 +470,12 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
                     isRealAiGenerated = feedbackResult.isRealAiGenerated
                 )
 
+                // Feature 11: Fetch previous attempt for this prompt before inserting current one
+                val prev = sessionDao.getPreviousSessionForPrompt(prompt.id)
+                _previousAttempt.value = prev
+
                 // F2: persist the session, then recompute all progress from the DB.
-                sessionDao.insert(
+                val insertedId = sessionDao.insert(
                     SessionEntity(
                         epochDay = currentEpochDay(),
                         timestamp = System.currentTimeMillis(),
@@ -438,12 +487,15 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
                         accuracy = feedbackResult.accuracy,
                         cefr = cefrLabel,
                         promptId = prompt.id,
-                        isDemo = !feedbackResult.isRealAiGenerated
+                        isDemo = !feedbackResult.isRealAiGenerated,
+                        audioPath = recordedAudioFile?.absolutePath
                     )
                 )
+                lastInsertedSessionId = insertedId
                 refreshProgress()
 
                 _analysisUiState.value = AnalysisUiState.Idle
+                _showSelfAssessmentDialog.value = true
                 _appState.value = AppState.Result
             } catch (e: CancellationException) {
                 throw e
@@ -586,6 +638,9 @@ fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = vi
     val userLevel by viewModel.userLevel.collectAsState()
     val avgWpm by viewModel.avgWpm.collectAsState()
     val showOnboarding by viewModel.showOnboarding.collectAsState()
+    val previousAttempt by viewModel.previousAttempt.collectAsState()
+    val currentSelfAssessment by viewModel.currentSelfAssessment.collectAsState()
+    val showSelfAssessmentDialog by viewModel.showSelfAssessmentDialog.collectAsState()
     val analysisStepMessage = (analysisUiState as? AnalysisUiState.Loading)?.step
         ?: "Analyzing your speech with Gemini AI..."
     val analysisError = (analysisUiState as? AnalysisUiState.Error)?.message
@@ -662,8 +717,19 @@ fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = vi
                 metrics = viewModel.metrics.collectAsState().value,
                 dailyGoalMinutes = dailyGoalMinutes,
                 todayPracticedMinutes = todayPracticedMinutes,
+                streakDays = streakDays,
                 recentBadge = recentUnlockedBadge,
+                audioFile = viewModel.recordedAudioFile,
+                previousAttempt = previousAttempt,
+                selfAssessment = currentSelfAssessment,
                 onBadgeClick = { viewModel.selectBadge(it) },
+                onRetryPrompt = {
+                    if (hasAudioPermission) {
+                        viewModel.retryCurrentPrompt(context)
+                    } else {
+                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
                 onPracticeAgain = {
                     viewModel.requestNewPrompt()
                     if (hasAudioPermission) {
@@ -671,6 +737,13 @@ fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = vi
                     } else {
                         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
+                },
+                onShare = {
+                    ShareProgressHelper.launchShareSheet(
+                        context = context,
+                        metrics = viewModel.metrics.value,
+                        streakDays = streakDays
+                    )
                 },
                 onBack = { viewModel.backToDashboard() }
             )
@@ -699,6 +772,16 @@ fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = vi
     if (showOnboarding) {
         OnboardingDialog(
             onContinue = { viewModel.completeOnboarding() }
+        )
+    }
+
+    // Feature 12: Post-session self-assessment reflection dialog (Dörnyei 2005)
+    if (showSelfAssessmentDialog) {
+        SelfAssessmentDialog(
+            onDismiss = { viewModel.dismissSelfAssessment() },
+            onSubmit = { fluency, pronunciation, confidence ->
+                viewModel.submitSelfAssessment(fluency, pronunciation, confidence)
+            }
         )
     }
 }
@@ -1208,9 +1291,15 @@ fun ResultScreen(
     metrics: SpeechMetrics,
     dailyGoalMinutes: Int = 15,
     todayPracticedMinutes: Int = 0,
+    streakDays: Int = 0,
     recentBadge: MilestoneBadge? = null,
+    audioFile: File? = null,
+    previousAttempt: SessionEntity? = null,
+    selfAssessment: SelfAssessmentData? = null,
     onBadgeClick: (MilestoneBadge) -> Unit = {},
+    onRetryPrompt: () -> Unit = {},
     onPracticeAgain: () -> Unit,
+    onShare: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val hapticHelper = rememberHapticHelper()
@@ -1308,6 +1397,12 @@ fun ResultScreen(
                 }
             }
 
+            // Feature 1: Audio Playback of Recorded Speech (Schmidt 1990 Noticing principle)
+            if (audioFile != null && audioFile.exists()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                AudioPlaybackCard(audioFile = audioFile)
+            }
+
             Spacer(modifier = Modifier.height(10.dp))
 
             // Daily Goal Progress Snippet
@@ -1357,6 +1452,30 @@ fun ResultScreen(
                 MilestoneRewardBanner(
                     badge = recentBadge,
                     onClick = { onBadgeClick(recentBadge) }
+                )
+            }
+
+            // Feature 12: Self-Assessment Calibration Card (Dörnyei 2005)
+            if (selfAssessment != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                SelfAssessmentCalibrationCard(
+                    selfFluency = selfAssessment.fluency,
+                    selfPronunciation = selfAssessment.pronunciation,
+                    selfConfidence = selfAssessment.confidence,
+                    aiScore = metrics.score
+                )
+            }
+
+            // Feature 11: Task Repetition Re-Attempt Comparison (Zhang 2023)
+            if (previousAttempt != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                ImprovementComparisonCard(
+                    currentScore = metrics.score,
+                    currentWpm = metrics.wpm,
+                    currentFillers = metrics.fillers,
+                    currentPauses = metrics.pauses,
+                    currentAccuracy = metrics.accuracy,
+                    previousSession = previousAttempt
                 )
             }
 
@@ -1551,24 +1670,67 @@ fun ResultScreen(
             Spacer(modifier = Modifier.height(28.dp))
 
             // Action Buttons
+            // Feature 11: Primary Action — Retry This Prompt (Zhang 2023 task repetition)
             Button(
                 onClick = {
                     hapticHelper.onStartSession()
-                    onPracticeAgain()
+                    onRetryPrompt()
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
-                    .testTag("practice_again_button"),
+                    .testTag("retry_prompt_button"),
                 colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Repeat, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Practice Again", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text("Retry This Prompt", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Secondary Action Row: New Prompt & Share Result (Feature 18)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        hapticHelper.onStartSession()
+                        onPracticeAgain()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("practice_again_button"),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, BorderLight)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = TextPrimary)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("New Prompt", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        hapticHelper.onToggleOrAdjust()
+                        onShare()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("share_result_button"),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, BorderLight)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = BluePrimary)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Share Result", fontSize = 14.sp, color = BluePrimary, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedButton(
                 onClick = {
@@ -1577,12 +1739,12 @@ fun ResultScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(48.dp)
                     .testTag("back_to_dashboard_button"),
                 shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, BorderLight)
             ) {
-                Text("Back to Home", fontSize = 16.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+                Text("Back to Home", fontSize = 15.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
             }
         }
     }

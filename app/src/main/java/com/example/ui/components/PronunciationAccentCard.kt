@@ -27,11 +27,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ai.PhoneticTip
 import com.example.ui.theme.*
+import com.example.util.rememberTtsHelper
 
 /**
  * Dedicated M3 Card displaying Gemini AI's real-time pronunciation and accent diagnostics,
  * including dual scores, detected accent characteristics, intonation analysis,
- * and actionable word-level phonetic drill cards with IPA notations.
+ * and actionable word-level phonetic drill cards with IPA notations and native TTS model audio.
  */
 @Composable
 fun PronunciationAccentCard(
@@ -45,6 +46,7 @@ fun PronunciationAccentCard(
     modifier: Modifier = Modifier
 ) {
     var expandedWordIndex by remember { mutableStateOf<Int?>(0) }
+    val ttsHelper = rememberTtsHelper()
 
     Card(
         modifier = modifier
@@ -242,6 +244,9 @@ fun PronunciationAccentCard(
                         isExpanded = isExpanded,
                         onToggle = {
                             expandedWordIndex = if (isExpanded) null else index
+                        },
+                        onSpeakWord = { word, isSlow ->
+                            ttsHelper.speak(word, isSlow)
                         }
                     )
                     if (index < phoneticTips.size - 1) {
@@ -302,7 +307,8 @@ private fun ScoreMeterPill(
 private fun PhoneticTipItem(
     tip: PhoneticTip,
     isExpanded: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onSpeakWord: (word: String, isSlow: Boolean) -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -343,12 +349,19 @@ private fun PhoneticTipItem(
                     }
                 }
 
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                    contentDescription = "Practice Sound",
-                    tint = if (isExpanded) BluePrimary else TextMuted,
-                    modifier = Modifier.size(18.dp)
-                )
+                IconButton(
+                    onClick = { onSpeakWord(tip.word, false) },
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("speak_tip_${tip.word}")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = "Listen to pronunciation",
+                        tint = BluePrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             AnimatedVisibility(visible = isExpanded) {
@@ -384,6 +397,47 @@ private fun PhoneticTipItem(
                             color = TextPrimary,
                             fontWeight = FontWeight.Medium
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Audio Model Pronunciation Controls (Foote & McDonough 2017)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { onSpeakWord(tip.word, false) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                                .testTag("tts_normal_${tip.word}"),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, BluePrimary.copy(alpha = 0.4f))
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = null,
+                                tint = BluePrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Hear Target", fontSize = 11.sp, color = BluePrimary, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        OutlinedButton(
+                            onClick = { onSpeakWord(tip.word, true) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                                .testTag("tts_slow_${tip.word}"),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, BorderLight)
+                        ) {
+                            Text("Slow 0.7x", fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+                        }
                     }
                 }
             }

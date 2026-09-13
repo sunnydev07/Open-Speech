@@ -23,7 +23,11 @@ data class SessionEntity(
     val accuracy: Int,
     val cefr: String,
     val promptId: String,
-    val isDemo: Boolean
+    val isDemo: Boolean,
+    val audioPath: String? = null,
+    val selfFluency: Int? = null,
+    val selfPronunciation: Int? = null,
+    val selfConfidence: Int? = null
 )
 
 @Dao
@@ -57,4 +61,13 @@ interface SessionDao {
 
     @Query("SELECT DISTINCT epochDay FROM sessions ORDER BY epochDay DESC")
     suspend fun activeEpochDays(): List<Long>
+
+    @Query("SELECT * FROM sessions WHERE promptId = :promptId ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getPreviousSessionForPrompt(promptId: String): SessionEntity?
+
+    @Query("UPDATE sessions SET selfFluency = :fluency, selfPronunciation = :pronunciation, selfConfidence = :confidence WHERE id = :sessionId")
+    suspend fun updateSelfAssessment(sessionId: Long, fluency: Int, pronunciation: Int, confidence: Int)
+
+    @Query("SELECT * FROM sessions ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getRecentSessions(limit: Int): List<SessionEntity>
 }
