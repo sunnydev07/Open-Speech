@@ -1,4 +1,4 @@
-# Fluency Coach (Open-Speech)
+# Open Speech
 
 [![Deploy preview site](https://github.com/sunnydev07/Open-Speech/actions/workflows/pages.yml/badge.svg)](https://github.com/sunnydev07/Open-Speech/actions/workflows/pages.yml)
 [![Live site](https://img.shields.io/badge/site-live-10B981)](https://sunnydev07.github.io/Open-Speech/)

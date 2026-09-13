@@ -18,7 +18,7 @@ class ExampleRobolectricTest {
   fun `read string from context`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
-    assertEquals("Fluency Coach", appName)
+    assertEquals("Open Speech", appName)
   }
 
   @Test
@@ -96,7 +96,7 @@ class ExampleRobolectricTest {
     assertEquals(0.75f, hourBadge.progressFraction, 0.01f)
     assertEquals(false, hourBadge.isUnlocked)
 
-    val vm = FluencyViewModel(ApplicationProvider.getApplicationContext())
+    val vm = SpeechViewModel(ApplicationProvider.getApplicationContext())
     val initialBadges = vm.badges.value
     val streakInVm = initialBadges.find { it.id == "streak_7" }
     val hourInVm = initialBadges.find { it.id == "practice_1hr" }
@@ -113,7 +113,7 @@ class ExampleRobolectricTest {
 
   @Test
   fun `verify daily goal setting and progress calculations`() {
-    val vm = FluencyViewModel(ApplicationProvider.getApplicationContext())
+    val vm = SpeechViewModel(ApplicationProvider.getApplicationContext())
     // Default goal is 15 minutes; nothing practiced yet on a fresh install (F2).
     assertEquals(15, vm.dailyGoalMinutes.value)
     assertEquals(0, vm.todayPracticedMinutes.value)
@@ -171,8 +171,8 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify FluencyMetrics contains pronunciation and accent feedback`() {
-    val defaultMetrics = FluencyMetrics()
+  fun `verify SpeechMetrics contains pronunciation and accent feedback`() {
+    val defaultMetrics = SpeechMetrics()
     assertEquals(88, defaultMetrics.pronunciationScore)
     assertEquals(84, defaultMetrics.accentClarityScore)
     org.junit.Assert.assertTrue(defaultMetrics.detectedAccentProfile.contains("American"))

@@ -7,19 +7,19 @@ import androidx.room.RoomDatabase
 
 /** Room database holding the session log (F2). Version 1 — no migrations yet. */
 @Database(entities = [SessionEntity::class], version = 1, exportSchema = false)
-abstract class FluencyDatabase : RoomDatabase() {
+abstract class OpenSpeechDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
 
     companion object {
         @Volatile
-        private var instance: FluencyDatabase? = null
+        private var instance: OpenSpeechDatabase? = null
 
-        fun get(context: Context): FluencyDatabase =
+        fun get(context: Context): OpenSpeechDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
-                    FluencyDatabase::class.java,
-                    "fluency.db"
+                    OpenSpeechDatabase::class.java,
+                    "openspeech.db"
                 ).build().also { instance = it }
             }
     }

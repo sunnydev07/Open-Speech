@@ -1,10 +1,10 @@
-# AGENTS.md — Fluency Coach (Open-Speech)
+# AGENTS.md — Open Speech
 
 > Read this first. This is the shared context for every new agent working on this repo.
 
 ## 1. What this app is
 
-**Fluency Coach** is an AI English speaking-coach Android app (native Jetpack Compose) + a static marketing/preview site.
+**Open Speech** is an AI English speaking-coach Android app (native Jetpack Compose) + a static marketing/preview site.
 
 Core loop today: **Dashboard → Timed Recording (30s/60s/90s/2m/Open) → AI Analyzing → Fluency Results**.
 Results show: overall score, CEFR label, WPM / pauses / fillers / accuracy, transcription, pronunciation + accent scores, phonetic tips with IPA, feedback list, and milestone badges.
@@ -38,9 +38,9 @@ Key config: `app/build.gradle.kts` (Compose BOM, Navigation, Room, Retrofit/Mosh
 
 ## 3. Architecture (current)
 
-- Single-`Activity`, no Navigation component in use. Navigation = `enum AppState { Dashboard, Recording, Analyzing, Result }` + `Crossfade` in `FluencyApp()` (`MainActivity.kt:58`).
-- Single `FluencyViewModel` holds **all** state: timer, audio manager, Gemini service, metrics, daily goal, badges/streak (all `MutableStateFlow`).
-- Audio path: `AudioRecorderManager.startRecording()` (AAC/MPEG-4, 128kbps, 44.1kHz) → `stopRecording(): File?` → base64 `inlineData audio/mp4` → `POST gemini-2.5-flash:generateContent` → strict-JSON prompt → `parseFeedbackJson()` → `FluencyMetrics`.
+- Single-`Activity`, no Navigation component in use. Navigation = `enum AppState { Dashboard, Recording, Analyzing, Result }` + `Crossfade` in `OpenSpeechApp()` (`MainActivity.kt:58`).
+- Single `SpeechViewModel` holds **all** state: timer, audio manager, Gemini service, metrics, daily goal, badges/streak (all `MutableStateFlow`).
+- Audio path: `AudioRecorderManager.startRecording()` (AAC/MPEG-4, 128kbps, 44.1kHz) → `stopRecording(): File?` → base64 `inlineData audio/mp4` → `POST gemini-2.5-flash:generateContent` → strict-JSON prompt → `parseFeedbackJson()` → `SpeechMetrics`.
 - No-API-key path: `generateDiagnosticFallback()` returns **randomized** scores + templated transcription. `isRealAiGenerated=false` flags it in UI.
 - Secrets: Secrets-Gradle-Plugin maps `.env` → `BuildConfig.GEMINI_API_KEY`, fallback `.env.example`.
 

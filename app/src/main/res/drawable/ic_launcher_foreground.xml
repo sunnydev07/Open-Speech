@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/fluency_coach_icon_1789189938071"
+        android:drawable="@drawable/openspeech_icon"
         android:gravity="center" />
 </layer-list>

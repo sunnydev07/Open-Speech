@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Fluency Coach"
+rootProject.name = "Open Speech"
 
 include(":app")

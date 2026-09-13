@@ -10,7 +10,7 @@ import com.example.ai.CefrLevel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private val Context.dataStore by preferencesDataStore("fluency_prefs")
+private val Context.dataStore by preferencesDataStore("openspeech_prefs")
 
 /** Small user settings persisted across process death (F2, F10). */
 class UserPrefs(private val context: Context) {

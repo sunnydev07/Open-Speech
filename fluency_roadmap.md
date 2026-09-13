@@ -83,7 +83,7 @@ P0 teaches → P1 adds real skills → P2 retention → P3 trust/platform. Don't
 
 **Whole P0 (one phase at a time, in order):**
 ```text
-You are working on Fluency Coach (Kotlin + Jetpack Compose).
+You are working on Open Speech (Kotlin + Jetpack Compose).
 Read AGENTS.md, fixing_plan.md, then fluency_roadmap.md.
 Prereq: F1+F2 from fixing_plan.md must be done — verify first.
 
@@ -98,7 +98,7 @@ Return: files changed, verification, follow-ups.
 
 **Single drill/feature (e.g. shadowing only):**
 ```text
-Implement fluency_roadmap.md item P0.2 (shadowing mode) in Fluency Coach.
+Implement fluency_roadmap.md item P0.2 (shadowing mode) in Open Speech.
 Read AGENTS.md first. Reuse PromptLibrary (F9) and SessionEntity (F2) if present;
 create them minimally if missing. TTS via Android TextToSpeech, playback via
 MediaPlayer. Include word-diff UI + retry + testTags listed in the roadmap.

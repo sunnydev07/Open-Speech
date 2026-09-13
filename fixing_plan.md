@@ -1,4 +1,4 @@
-# fixing_plan.md — Fluency Coach: 10 Bugs / Tech-Debt Fixes
+# fixing_plan.md — Open Speech: 10 Bugs / Tech-Debt Fixes
 
 > Source of truth: `AGENTS.md §6`. Fix in order below. Each item is a small PR.
 > Stack: Kotlin, Jetpack Compose Material3, `minSdk 24`, single-Activity + `AppState` enum, `MutableStateFlow` + `collectAsState()`.
@@ -108,7 +108,7 @@
 > Use this to implement the whole plan, or replace `[ITEM]` with e.g. `F1` for one item.
 
 ```text
-You are working on Fluency Coach (Android, Kotlin + Jetpack Compose).
+You are working on Open Speech (Android, Kotlin + Jetpack Compose).
 Read AGENTS.md then fixing_plan.md.
 
 Implement item [ITEM, e.g. F1]: follow its Fix checklist exactly.

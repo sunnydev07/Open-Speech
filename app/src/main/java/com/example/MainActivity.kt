@@ -49,7 +49,7 @@ import com.example.ai.PhoneticTip
 import com.example.ai.PracticePrompt
 import com.example.ai.PromptLibrary
 import com.example.audio.AudioRecorderManager
-import com.example.data.FluencyDatabase
+import com.example.data.OpenSpeechDatabase
 import com.example.data.SessionEntity
 import com.example.data.StreakCalculator
 import com.example.data.UserPrefs
@@ -80,7 +80,7 @@ sealed interface AnalysisUiState {
     data class Error(val message: String) : AnalysisUiState
 }
 
-data class FluencyMetrics(
+data class SpeechMetrics(
     val score: Int = 86,
     val cefr: String = "B2 Upper Intermediate",
     val cefrJustification: String = "",
@@ -124,9 +124,9 @@ data class FluencyMetrics(
     val isRealAiGenerated: Boolean = true
 )
 
-class FluencyViewModel(application: Application) : AndroidViewModel(application) {
+class SpeechViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = UserPrefs(application.applicationContext)
-    private val sessionDao = FluencyDatabase.get(application.applicationContext).sessionDao()
+    private val sessionDao = OpenSpeechDatabase.get(application.applicationContext).sessionDao()
 
     private val _appState = MutableStateFlow(AppState.Dashboard)
     val appState: StateFlow<AppState> = _appState.asStateFlow()
@@ -144,8 +144,8 @@ class FluencyViewModel(application: Application) : AndroidViewModel(application)
     private val _isPaused = MutableStateFlow(false)
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
 
-    private val _metrics = MutableStateFlow(FluencyMetrics())
-    val metrics: StateFlow<FluencyMetrics> = _metrics.asStateFlow()
+    private val _metrics = MutableStateFlow(SpeechMetrics())
+    val metrics: StateFlow<SpeechMetrics> = _metrics.asStateFlow()
 
     // Daily Goal State & Progress (F2: loaded from DataStore + Room, never hardcoded)
     private val _dailyGoalMinutes = MutableStateFlow(15) // default until DataStore loads
@@ -404,7 +404,7 @@ class FluencyViewModel(application: Application) : AndroidViewModel(application)
                     cefrJustification = ""
                 }
 
-                _metrics.value = FluencyMetrics(
+                _metrics.value = SpeechMetrics(
                     score = feedbackResult.pronunciationScore,
                     cefr = cefrLabel,
                     cefrJustification = cefrJustification,
@@ -555,13 +555,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            FluencyCoachTheme {
+            OpenSpeechTheme {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = BackgroundLight,
                     contentWindowInsets = WindowInsets.safeDrawing
                 ) { innerPadding ->
-                    FluencyApp(modifier = Modifier.padding(innerPadding))
+                    OpenSpeechApp(modifier = Modifier.padding(innerPadding))
                 }
             }
         }
@@ -569,7 +569,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun FluencyApp(modifier: Modifier = Modifier, viewModel: FluencyViewModel = viewModel()) {
+fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = viewModel()) {
     val context = LocalContext.current
     val state by viewModel.appState.collectAsState()
     val badges by viewModel.badges.collectAsState()
@@ -779,7 +779,7 @@ fun DashboardScreen(
             }
 
             Text(
-                text = "Fluency Coach",
+                text = "Open Speech",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
@@ -1205,7 +1205,7 @@ fun AnalyzingScreen(
  */
 @Composable
 fun ResultScreen(
-    metrics: FluencyMetrics,
+    metrics: SpeechMetrics,
     dailyGoalMinutes: Int = 15,
     todayPracticedMinutes: Int = 0,
     recentBadge: MilestoneBadge? = null,
@@ -1616,7 +1616,7 @@ fun OnboardingDialog(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "Welcome to Fluency Coach",
+                    text = "Welcome to Open Speech",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,

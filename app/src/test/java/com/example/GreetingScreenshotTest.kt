@@ -4,7 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
-import com.example.ui.theme.FluencyCoachTheme
+import com.example.ui.theme.OpenSpeechTheme
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -23,14 +23,14 @@ class GreetingScreenshotTest {
 
   @Test
   fun dashboard_screenshot() {
-    composeTestRule.setContent { FluencyCoachTheme { FluencyApp() } }
+    composeTestRule.setContent { OpenSpeechTheme { OpenSpeechApp() } }
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/dashboard.png")
   }
 
   @Test
   fun recording_screenshot() {
     composeTestRule.setContent {
-      FluencyCoachTheme {
+      OpenSpeechTheme {
         RecordingScreen(
           prompt = "Describe a challenging situation you overcame at work or school, and what you learned from it.",
           totalDuration = 60,
@@ -51,7 +51,7 @@ class GreetingScreenshotTest {
   @Test
   fun analyzing_screenshot() {
     composeTestRule.setContent {
-      FluencyCoachTheme {
+      OpenSpeechTheme {
         AnalyzingScreen(
           stepMessage = "Evaluating pronunciation phonemes, syllable stress & accent..."
         )
@@ -63,9 +63,9 @@ class GreetingScreenshotTest {
   @Test
   fun result_screenshot() {
     composeTestRule.setContent {
-      FluencyCoachTheme {
+      OpenSpeechTheme {
         ResultScreen(
-          metrics = FluencyMetrics(),
+          metrics = SpeechMetrics(),
           dailyGoalMinutes = 15,
           todayPracticedMinutes = 7,
           recentBadge = null,
@@ -81,7 +81,7 @@ class GreetingScreenshotTest {
   @Test
   fun daily_goal_dialog_screenshot() {
     composeTestRule.setContent {
-      FluencyCoachTheme {
+      OpenSpeechTheme {
         com.example.ui.components.DailyGoalDialog(
           currentGoalMinutes = 15,
           onSaveGoal = {},
@@ -95,7 +95,7 @@ class GreetingScreenshotTest {
   @Test
   fun milestone_badge_dialog_screenshot() {
     composeTestRule.setContent {
-      FluencyCoachTheme {
+      OpenSpeechTheme {
         com.example.ui.components.MilestoneDetailDialog(
           badge = com.example.ui.components.MilestoneBadge(
             id = "streak_7",
