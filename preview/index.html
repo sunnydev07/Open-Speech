@@ -36,6 +36,12 @@
       margin: 0;
       padding: 0;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
     }
 
     body {
@@ -905,6 +911,266 @@
     .tts-pill:active {
       transform: scale(0.97);
     }
+
+    /* =========================================================
+       Dynamic Responsive Design for Mobile Phones & Tablets
+       ========================================================= */
+
+    @media (max-width: 900px) {
+      header {
+        padding: 12px 16px;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .brand-subtitle {
+        display: none;
+      }
+      .nav-tabs {
+        order: 3;
+        width: 100%;
+        margin-top: 4px;
+      }
+      .nav-tab {
+        flex: 1;
+        text-align: center;
+        padding: 9px 8px;
+        font-size: 0.82rem;
+      }
+      main {
+        flex-direction: column;
+        align-items: center;
+        padding: 16px 12px 96px;
+        gap: 24px;
+        width: 100%;
+      }
+      .device-wrapper {
+        width: 100%;
+        max-width: 440px;
+        display: flex;
+        justify-content: center;
+      }
+      .device-frame {
+        width: 100%;
+        max-width: 440px;
+        height: auto;
+        min-height: 680px;
+        max-height: none;
+        border-radius: 28px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 0 4px #1E293B;
+      }
+      .app-viewport {
+        min-height: 640px;
+        max-height: none;
+      }
+      .gallery-panel {
+        width: 100%;
+        max-width: 440px;
+        padding: 16px;
+        border-radius: 20px;
+      }
+      .screen-pills {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 8px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .screen-pill {
+        flex-shrink: 0;
+      }
+      .screenshot-view {
+        min-height: 380px;
+        padding: 12px;
+      }
+      .screenshot-view img {
+        max-height: 480px;
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+      }
+      .site-footer {
+        padding: 28px 16px 100px;
+      }
+      .footer-inner {
+        flex-direction: column;
+        text-align: center;
+        gap: 24px;
+      }
+      .footer-links {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+      }
+      .footer-links a {
+        margin-right: 0;
+      }
+    }
+
+    @media (max-width: 480px) {
+      header {
+        padding: 10px 14px;
+      }
+      .brand-title {
+        font-size: 1.05rem;
+      }
+      .brand-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+        border-radius: 10px;
+      }
+      .apk-badge {
+        padding: 6px 12px;
+        font-size: 0.78rem;
+      }
+      .badge-text-full {
+        display: none !important;
+      }
+      .badge-text-short {
+        display: inline-block !important;
+      }
+      main {
+        padding: 8px 8px 96px;
+      }
+      .device-wrapper {
+        max-width: 100%;
+      }
+      .device-frame {
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        min-height: auto;
+      }
+      .device-notch {
+        display: none;
+      }
+      .status-bar {
+        height: 32px;
+        padding: 0 14px 4px;
+        font-size: 0.68rem;
+      }
+      .screen {
+        padding: 14px 12px 24px;
+      }
+      .card {
+        padding: 14px;
+        border-radius: 14px;
+        margin-bottom: 12px;
+      }
+      .presets-row {
+        gap: 6px;
+      }
+      .preset-pill {
+        padding: 7px 10px;
+        font-size: 0.75rem;
+      }
+      .timer-svg {
+        width: 190px;
+        height: 190px;
+      }
+      .timer-digits {
+        font-size: 2.1rem;
+      }
+      .metric-grid {
+        gap: 8px;
+      }
+      .metric-box {
+        padding: 10px 8px;
+      }
+      .metric-box-val {
+        font-size: 1.2rem;
+      }
+      .phonetic-tip {
+        padding: 8px;
+      }
+      .footer-qr {
+        max-width: 120px;
+        padding: 8px;
+      }
+      .footer-qr img {
+        width: 100px;
+        height: 100px;
+      }
+    }
+
+    /* Floating Mobile Sticky Download Bar */
+    .mobile-sticky-bar {
+      display: none;
+      position: fixed;
+      bottom: 14px;
+      left: 12px;
+      right: 12px;
+      z-index: 999;
+    }
+    @media (max-width: 900px) {
+      .mobile-sticky-bar {
+        display: block;
+      }
+    }
+    .mobile-sticky-inner {
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(52, 211, 153, 0.45);
+      border-radius: 18px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    }
+    .mobile-sticky-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mobile-sticky-btn {
+      background: linear-gradient(135deg, #10B981, #059669);
+      color: #FFFFFF;
+      font-weight: 700;
+      font-size: 0.82rem;
+      padding: 8px 16px;
+      border-radius: 12px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 3px 12px rgba(16, 185, 129, 0.4);
+      transition: transform 0.15s;
+    }
+    .mobile-sticky-btn:active {
+      transform: scale(0.96);
+    }
+
+    /* Mobile CTA in Footer */
+    .footer-mobile-cta {
+      display: none;
+      width: 100%;
+      margin: 12px 0;
+    }
+    @media (max-width: 900px) {
+      .footer-mobile-cta {
+        display: block;
+      }
+    }
+    .footer-big-download-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: linear-gradient(135deg, #10B981, #059669);
+      color: #FFFFFF;
+      font-weight: 700;
+      font-size: 0.92rem;
+      padding: 14px 20px;
+      border-radius: 14px;
+      text-decoration: none;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+      transition: transform 0.15s;
+    }
+    .footer-big-download-btn:active {
+      transform: scale(0.98);
+    }
   </style>
 </head>
 <body>
@@ -926,7 +1192,8 @@
     <a href="./app-debug.apk" download="OpenSpeech.apk" onclick="downloadLatestApk(this)" style="text-decoration: none;" title="Download the latest Android app directly">
       <div class="apk-badge">
         <span class="live-dot"></span>
-        <span>⚡ Download Latest APK (v1.1 • 23.4MB)</span>
+        <span class="badge-text-full">⚡ Download Latest APK (v1.1 • 23.4MB)</span>
+        <span class="badge-text-short" style="display: none;">⚡ Get APK</span>
       </div>
     </a>
   </header>
@@ -1357,9 +1624,31 @@
           <a href="./privacy.html">Privacy Policy</a>
           <a href="https://github.com/sunnydev07/Open-Speech">GitHub Repo</a>
         </div>
+        <div class="footer-mobile-cta">
+          <a href="./app-debug.apk" download="OpenSpeech.apk" onclick="downloadLatestApk(this)" class="footer-big-download-btn">
+            <span>📲</span>
+            <span>Install Open Speech APK on this Phone (v1.1)</span>
+          </a>
+        </div>
       </div>
     </div>
   </footer>
+
+  <!-- Floating Mobile Sticky Download Bar -->
+  <aside class="mobile-sticky-bar" aria-label="Mobile download bar">
+    <div class="mobile-sticky-inner">
+      <div class="mobile-sticky-info">
+        <div class="brand-icon" style="width: 34px; height: 34px; font-size: 16px; border-radius: 10px;">🎙️</div>
+        <div>
+          <div style="font-weight: 700; font-size: 0.85rem; color: #FFFFFF; line-height: 1.2;">Open Speech</div>
+          <div style="font-size: 0.72rem; color: #34D399; font-weight: 600;">v1.1 • 23.4MB • Android 8+</div>
+        </div>
+      </div>
+      <a href="./app-debug.apk" download="OpenSpeech.apk" onclick="downloadLatestApk(this)" class="mobile-sticky-btn">
+        <span>⚡ Install APK</span>
+      </a>
+    </div>
+  </aside>
 
   <script>
     // Simulator Logic
@@ -1498,18 +1787,55 @@
       document.getElementById('badge-modal').classList.remove('active');
     }
 
-    // View Switching
+    // Responsive View Switching
     function switchView(view) {
       document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      const isMobile = window.innerWidth <= 900;
+      const simPanel = document.getElementById('simulator-panel');
+      const galPanel = document.getElementById('gallery-panel');
+
       if (view === 'interactive') {
         document.querySelectorAll('.nav-tab')[0].classList.add('active');
-        document.getElementById('simulator-panel').style.display = 'block';
-        document.getElementById('gallery-panel').style.display = 'block';
+        simPanel.style.display = 'block';
+        if (isMobile) {
+          galPanel.style.display = 'none';
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          galPanel.style.display = 'block';
+        }
       } else {
         document.querySelectorAll('.nav-tab')[1].classList.add('active');
-        document.getElementById('gallery-panel').scrollIntoView({ behavior: 'smooth' });
+        galPanel.style.display = 'block';
+        if (isMobile) {
+          simPanel.style.display = 'none';
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          galPanel.scrollIntoView({ behavior: 'smooth' });
+        }
       }
     }
+
+    // Auto-adjust view on mobile initial load & window resize
+    function adjustViewForScreenSize() {
+      const isMobile = window.innerWidth <= 900;
+      const simPanel = document.getElementById('simulator-panel');
+      const galPanel = document.getElementById('gallery-panel');
+      if (!isMobile) {
+        simPanel.style.display = 'block';
+        galPanel.style.display = 'block';
+      } else {
+        const isGalleryActive = document.querySelectorAll('.nav-tab')[1].classList.contains('active');
+        if (isGalleryActive) {
+          simPanel.style.display = 'none';
+          galPanel.style.display = 'block';
+        } else {
+          simPanel.style.display = 'block';
+          galPanel.style.display = 'none';
+        }
+      }
+    }
+    window.addEventListener('resize', adjustViewForScreenSize);
+    adjustViewForScreenSize();
 
     function showScreenshot(name) {
       document.querySelectorAll('.screen-pill').forEach(p => p.classList.remove('active'));
