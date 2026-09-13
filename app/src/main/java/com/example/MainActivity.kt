@@ -176,6 +176,10 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
     private var analysisJob: Job? = null
     private var amplitudeCollectJob: Job? = null
 
+    /** Permission request that resumes the action the user actually tapped (start/retry/drill). */
+    var pendingAction: (() -> Unit)? = null
+
+    /** True while analysis is running — used to gate session starts. */
     var recordedAudioFile: File? = null
         private set
 
@@ -288,7 +292,11 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
             _badges.value.firstOrNull { it.isUnlocked && it.id !in previouslyUnlocked }
     }
 
-    private fun currentEpochDay(): Long = System.currentTimeMillis() / 86_400_000L
+    private fun currentEpochDay(): Long {
+        // Local-day bucket (DST-aware) so streaks break at local midnight, not UTC.
+        val now = System.currentTimeMillis()
+        return (now + java.util.TimeZone.getDefault().getOffset(now)) / 86_400_000L
+    }
 
     fun selectBadge(badge: MilestoneBadge?) {
         _selectedBadge.value = badge
@@ -442,8 +450,14 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Pausing now pauses the recorder too — the mic is no longer hot while "paused". */
     fun togglePause() {
-        _isPaused.value = !_isPaused.value
+        val manager = audioRecorderManager ?: return
+        if (_isPaused.value) {
+            if (manager.resume()) _isPaused.value = false
+        } else {
+            if (manager.pause()) _isPaused.value = true
+        }
     }
 
     fun addSeconds(extraSeconds: Int) {
@@ -495,6 +509,16 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
     private fun launchAnalysis() {
         analysisJob?.cancel()
         analysisJob = viewModelScope.launch {
+            // Never ask Gemini to grade silence: without audio the model would
+            // hallucinate a transcript + score that looks real.
+            val audio = recordedAudioFile
+            if (audio == null || !audio.exists() || audio.length() < 2_000) {
+                _analysisUiState.value = AnalysisUiState.Error(
+                    "No microphone audio was captured. Check mic permission and try again."
+                )
+                _appState.value = AppState.Dashboard
+                return@launch
+            }
             setLoadingStep("Sending microphone recording to Gemini AI...")
             delay(500)
             setLoadingStep("Evaluating pronunciation phonemes, syllable stress & accent...")
@@ -592,7 +616,9 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
                 refreshProgress()
 
                 _analysisUiState.value = AnalysisUiState.Idle
-                _showSelfAssessmentDialog.value = true
+                // Self-assessment is only meaningful for full sessions, not 30s re-drills.
+                // (Skipping it here also keeps lastInsertedSessionId → parent linkage intact.)
+                _showSelfAssessmentDialog.value = (redrill == null)
                 _appState.value = AppState.Result
             } catch (e: CancellationException) {
                 throw e
@@ -756,9 +782,20 @@ fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = vi
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
             hasAudioPermission = granted
-            viewModel.startRecording(context)
+            // Resume exactly what the user tapped (start / retry / re-drill).
+            if (granted) viewModel.pendingAction?.invoke()
+            viewModel.pendingAction = null
         }
     )
+
+    fun withMicPermission(action: () -> Unit) {
+        if (hasAudioPermission) {
+            action()
+        } else {
+            viewModel.pendingAction = action
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 
     Crossfade(
         targetState = state,
@@ -786,11 +823,7 @@ fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = vi
                 onBadgeClick = { viewModel.selectBadge(it) },
                 onSelectPreset = { viewModel.selectPreset(it) },
                 onStartPractice = {
-                    if (hasAudioPermission) {
-                        viewModel.startRecording(context)
-                    } else {
-                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
+                    withMicPermission { viewModel.startRecording(context) }
                 }
             )
             AppState.Recording -> RecordingScreen(
@@ -827,26 +860,14 @@ fun OpenSpeechApp(modifier: Modifier = Modifier, viewModel: SpeechViewModel = vi
                 redrillCounts = viewModel.redrillCounts.collectAsState().value,
                 onBadgeClick = { viewModel.selectBadge(it) },
                 onRetryPrompt = {
-                    if (hasAudioPermission) {
-                        viewModel.retryCurrentPrompt(context)
-                    } else {
-                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
+                    withMicPermission { viewModel.retryCurrentPrompt(context) }
                 },
                 onStartRedrill = { index ->
-                    if (hasAudioPermission) {
-                        viewModel.startRedrill(index, context)
-                    } else {
-                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
+                    withMicPermission { viewModel.startRedrill(index, context) }
                 },
                 onPracticeAgain = {
                     viewModel.requestNewPrompt()
-                    if (hasAudioPermission) {
-                        viewModel.startRecording(context)
-                    } else {
-                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
+                    withMicPermission { viewModel.startRecording(context) }
                 },
                 onShare = {
                     ShareProgressHelper.launchShareSheet(

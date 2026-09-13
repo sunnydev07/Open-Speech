@@ -52,16 +52,19 @@ interface SessionDao {
     @Query("SELECT COALESCE(SUM(durationSec), 0) FROM sessions WHERE epochDay = :day")
     suspend fun durationSecOn(day: Long): Long
 
-    @Query("SELECT COALESCE(AVG(wpm), 0) FROM sessions WHERE isDemo = 0")
+    // NOTE: pacing/score aggregates exclude demo sessions, re-drill snippets, and
+    // clips shorter than 30s — otherwise a 30-second one-sentence drill would
+    // skew "Avg Pacing" and the Pacing Master badge.
+    @Query("SELECT COALESCE(AVG(wpm), 0) FROM sessions WHERE isDemo = 0 AND isRedrill = 0 AND durationSec >= 30")
     suspend fun avgWpmReal(): Double
 
-    @Query("SELECT COALESCE(AVG(score), 0) FROM sessions WHERE isDemo = 0")
+    @Query("SELECT COALESCE(AVG(score), 0) FROM sessions WHERE isDemo = 0 AND isRedrill = 0 AND durationSec >= 30")
     suspend fun avgScoreReal(): Double
 
     @Query("SELECT COALESCE(MAX(score), 0) FROM sessions WHERE isDemo = 0")
     suspend fun bestScoreReal(): Int
 
-    @Query("SELECT COUNT(*) FROM sessions WHERE isDemo = 0 AND wpm BETWEEN 120 AND 150")
+    @Query("SELECT COUNT(*) FROM sessions WHERE isDemo = 0 AND isRedrill = 0 AND durationSec >= 30 AND wpm BETWEEN 120 AND 150")
     suspend fun pacingSessionCount(): Int
 
     @Query("SELECT COALESCE(MAX(durationSec), 0) FROM sessions")
@@ -70,7 +73,8 @@ interface SessionDao {
     @Query("SELECT DISTINCT epochDay FROM sessions ORDER BY epochDay DESC")
     suspend fun activeEpochDays(): List<Long>
 
-    @Query("SELECT * FROM sessions WHERE promptId = :promptId ORDER BY timestamp DESC LIMIT 1")
+    // Only full sessions count as a "previous attempt" — never a re-drill snippet.
+    @Query("SELECT * FROM sessions WHERE promptId = :promptId AND isRedrill = 0 ORDER BY timestamp DESC LIMIT 1")
     suspend fun getPreviousSessionForPrompt(promptId: String): SessionEntity?
 
     @Query("UPDATE sessions SET selfFluency = :fluency, selfPronunciation = :pronunciation, selfConfidence = :confidence WHERE id = :sessionId")

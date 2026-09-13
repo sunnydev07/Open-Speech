@@ -37,6 +37,9 @@ class AudioRecorderManager(
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
+    private val _isPaused = MutableStateFlow(false)
+    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
+
     fun hasRecordPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             context,
@@ -85,6 +88,12 @@ class AudioRecorderManager(
             // Poll amplitude for real-time visualizer
             amplitudeJob = scope.launch {
                 while (isActive && _isRecording.value) {
+                    if (_isPaused.value) {
+                        // Paused recorder must not drive the waveform.
+                        _amplitude.value = 0.05f
+                        delay(200)
+                        continue
+                    }
                     try {
                         val maxAmp = mediaRecorder?.maxAmplitude ?: 0
                         // Normalize 0..32767 to 0.0..1.0 with logarithmic dampening
@@ -105,10 +114,38 @@ class AudioRecorderManager(
         }
     }
 
+    /** Pauses the recorder (API 24+). Returns false when nothing is recording. */
+    fun pause(): Boolean {
+        if (!_isRecording.value || _isPaused.value) return false
+        return try {
+            mediaRecorder?.pause()
+            _isPaused.value = true
+            _amplitude.value = 0.05f
+            true
+        } catch (e: Exception) {
+            Log.w("AudioRecorderManager", "pause() failed: ${e.message}")
+            false
+        }
+    }
+
+    /** Resumes a paused recorder. Returns false when not paused. */
+    fun resume(): Boolean {
+        if (!_isRecording.value || !_isPaused.value) return false
+        return try {
+            mediaRecorder?.resume()
+            _isPaused.value = false
+            true
+        } catch (e: Exception) {
+            Log.w("AudioRecorderManager", "resume() failed: ${e.message}")
+            false
+        }
+    }
+
     /**
      * Stops the active recording and returns the recorded File.
      */
     fun stopRecording(): File? {
+        _isPaused.value = false
         amplitudeJob?.cancel()
         amplitudeJob = null
         _amplitude.value = 0f

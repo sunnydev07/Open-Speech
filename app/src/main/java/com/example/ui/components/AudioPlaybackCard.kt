@@ -40,26 +40,32 @@ fun AudioPlaybackCard(
     var isPlaying by remember { mutableStateOf(false) }
     var currentPositionMs by remember { mutableIntStateOf(0) }
     var durationMs by remember { mutableIntStateOf(0) }
+    var prepared by remember { mutableStateOf(false) }
 
     // Initialize or release MediaPlayer
     DisposableEffect(audioFile) {
-        val player = MediaPlayer().apply {
-            try {
-                setDataSource(audioFile.absolutePath)
-                prepare()
-                durationMs = duration
-                setOnCompletionListener {
-                    isPlaying = false
-                    currentPositionMs = 0
-                }
-            } catch (e: Exception) {
-                // If audio cannot be prepared, fail gracefully
+        val player = MediaPlayer()
+        var ready = false
+        try {
+            player.setDataSource(audioFile.absolutePath)
+            player.prepare()
+            durationMs = player.duration
+            ready = true
+            player.setOnCompletionListener {
+                isPlaying = false
+                currentPositionMs = 0
             }
+        } catch (e: Exception) {
+            // If audio cannot be prepared, fail gracefully (hide controls via durationMs = 0)
         }
         mediaPlayer = player
+        prepared = ready
 
         onDispose {
-            player.stop()
+            // stop() throws IllegalStateException on a never-prepared player.
+            runCatching {
+                if (player.isPlaying) player.stop()
+            }
             player.release()
             mediaPlayer = null
         }
@@ -69,8 +75,10 @@ fun AudioPlaybackCard(
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             mediaPlayer?.let { player ->
-                if (player.isPlaying) {
-                    currentPositionMs = player.currentPosition
+                runCatching {
+                    if (player.isPlaying) {
+                        currentPositionMs = player.currentPosition
+                    }
                 }
             }
             delay(100)
@@ -143,12 +151,14 @@ fun AudioPlaybackCard(
                 IconButton(
                     onClick = {
                         mediaPlayer?.let { player ->
-                            if (player.isPlaying) {
-                                player.pause()
-                                isPlaying = false
-                            } else {
-                                player.start()
-                                isPlaying = true
+                            runCatching {
+                                if (player.isPlaying) {
+                                    player.pause()
+                                    isPlaying = false
+                                } else if (prepared) {
+                                    player.start()
+                                    isPlaying = true
+                                }
                             }
                         }
                     },
@@ -168,22 +178,30 @@ fun AudioPlaybackCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Slider(
-                    value = if (durationMs > 0) currentPositionMs.toFloat() / durationMs.toFloat() else 0f,
-                    onValueChange = { frac ->
-                        val targetMs = (frac * durationMs).toInt()
-                        currentPositionMs = targetMs
-                        mediaPlayer?.seekTo(targetMs)
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("playback_seek_bar"),
-                    colors = SliderDefaults.colors(
-                        thumbColor = BluePrimary,
-                        activeTrackColor = BluePrimary,
-                        inactiveTrackColor = BorderLight
+                if (prepared && durationMs > 0) {
+                    Slider(
+                        value = currentPositionMs.toFloat() / durationMs.toFloat(),
+                        onValueChange = { frac ->
+                            val targetMs = (frac * durationMs).toInt()
+                            currentPositionMs = targetMs
+                            runCatching { mediaPlayer?.seekTo(targetMs) }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("playback_seek_bar"),
+                        colors = SliderDefaults.colors(
+                            thumbColor = BluePrimary,
+                            activeTrackColor = BluePrimary,
+                            inactiveTrackColor = BorderLight
+                        )
                     )
-                )
+                } else {
+                    Text(
+                        text = "Recording could not be prepared for playback",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
+                }
             }
         }
     }
